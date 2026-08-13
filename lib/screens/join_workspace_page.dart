@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../api/api_client.dart';
-import '../theme/app_theme.dart';
 import 'home_page.dart';
 import 'login_page.dart';
 
@@ -80,124 +80,135 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.theme.colors;
+    final typography = context.theme.typography;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Create your account')),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    "You'll join your team's workspace with a code from the office.",
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 15),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Full name', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  TextField(controller: _fullNameController),
-                  const SizedBox(height: 16),
-                  const Text('Email', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  TextField(controller: _emailController, keyboardType: TextInputType.emailAddress),
-                  const SizedBox(height: 16),
-                  const Text('Password', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  TextField(controller: _passwordController, obscureText: true),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'WORKSPACE',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                  const Divider(color: AppColors.border, height: 20),
-                  const Text('Organization ID', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _orgIdController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
-                      suffixIcon: _lookingUp
-                          ? const Padding(
-                              padding: EdgeInsets.all(14),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            )
-                          : null,
-                    ),
-                  ),
-                  if (_workspace != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.successBg,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, color: AppColors.success, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Joining ${_workspace!.businessName}'
-                              '${_workspace!.address != null ? ' — ${_workspace!.address}' : ''}',
-                              style: const TextStyle(
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
+        child: Column(
+          children: [
+            FHeader(title: const Text('Create your account')),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          "You'll join your team's workspace with a code from the office.",
+                          style: typography.body.sm.copyWith(color: colors.mutedForeground),
+                        ),
+                        const SizedBox(height: 24),
+                        FTextField(
+                          control: FTextFieldControl.managed(controller: _fullNameController),
+                          label: const Text('Full name'),
+                        ),
+                        const SizedBox(height: 16),
+                        FTextField(
+                          control: FTextFieldControl.managed(controller: _emailController),
+                          label: const Text('Email'),
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: 16),
+                        FTextField(
+                          control: FTextFieldControl.managed(controller: _passwordController),
+                          label: const Text('Password'),
+                          obscureText: true,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'WORKSPACE',
+                          style: typography.body.xs.copyWith(
+                            color: colors.mutedForeground,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        FDivider(style: .delta(color: colors.border)),
+                        const SizedBox(height: 4),
+                        FTextField(
+                          control: FTextFieldControl.managed(controller: _orgIdController),
+                          label: const Text('Organization ID'),
+                          textCapitalization: TextCapitalization.characters,
+                          suffixBuilder: (context, style, _) => _lookingUp
+                              ? const Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                        if (_workspace != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Joining ${_workspace!.businessName}'
+                                    '${_workspace!.address != null ? ' — ${_workspace!.address}' : ''}',
+                                    style: typography.body.xs.copyWith(
+                                      color: Colors.green.shade700,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
-                      ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: colors.error.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(_error!, style: TextStyle(color: colors.error)),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        FButton(
+                          onPress: _submitting ? null : _submit,
+                          child: _submitting
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Create account'),
+                        ),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: FButton(
+                            variant: .ghost,
+                            onPress: () => Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const LoginPage()),
+                            ),
+                            child: const Text('Already have an account? Log in'),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                  if (_error != null) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.errorBg,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(_error!, style: const TextStyle(color: AppColors.error)),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _submitting ? null : _submit,
-                    child: _submitting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentText),
-                          )
-                        : const Text('Create account'),
                   ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => const LoginPage()),
-                      ),
-                      child: const Text('Already have an account? Log in'),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

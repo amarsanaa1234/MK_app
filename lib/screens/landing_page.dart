@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
-import '../theme/app_theme.dart';
 import 'join_workspace_page.dart';
 import 'login_page.dart';
 import 'setup_workspace_page.dart';
@@ -10,6 +10,8 @@ class LandingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.theme.colors;
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -24,50 +26,54 @@ class LandingPage extends StatelessWidget {
                     width: 84,
                     height: 84,
                     decoration: BoxDecoration(
-                      color: AppColors.accent,
+                      color: colors.primary,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     alignment: Alignment.center,
-                    child: const Text(
+                    child: Text(
                       'M',
                       style: TextStyle(
                         fontSize: 40,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.accentText,
+                        color: colors.primaryForeground,
                       ),
                     ),
                   ),
                   const SizedBox(height: 28),
-                  Text('MK Roster', style: Theme.of(context).textTheme.headlineMedium),
+                  Text('MK Roster', style: context.theme.typography.display.xl3),
                   const SizedBox(height: 12),
                   Text(
                     'Crew schedules and timesheets,\nin one place.',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 15),
+                    style: context.theme.typography.body.sm.copyWith(color: colors.mutedForeground),
                   ),
                   const SizedBox(height: 40),
-                  FilledButton(
-                    onPressed: () => Navigator.of(context).push(
+                  FButton(
+                    onPress: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const LoginPage()),
                     ),
                     child: const Text('Log in'),
                   ),
                   const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).push(
+                  FButton(
+                    variant: .outline,
+                    onPress: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const JoinWorkspacePage()),
                     ),
                     child: const Text('Create an account'),
                   ),
                   const SizedBox(height: 24),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).push(
+                  FButton(
+                    variant: .ghost,
+                    onPress: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const SetupWorkspacePage()),
                     ),
-                    child: const Text(
-                      'Registering a business? Set up a workspace',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                    child: const Flexible(
+                      child: Text(
+                        'Registering a business? Set up a workspace',
+                        textAlign: TextAlign.center,
+                        softWrap: true,
+                      ),
                     ),
                   ),
                 ],

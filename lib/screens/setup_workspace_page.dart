@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../api/api_client.dart';
-import '../theme/app_theme.dart';
 import 'home_page.dart';
 
 class SetupWorkspacePage extends StatefulWidget {
@@ -51,93 +51,109 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Set up your workspace')),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              child: _created != null ? _buildSuccess(_created!) : _buildForm(),
+        child: Column(
+          children: [
+            FHeader(title: const Text('Set up your workspace')),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                    child: _created != null ? _buildSuccess(context, _created!) : _buildForm(context),
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildForm() {
+  Widget _buildForm(BuildContext context) {
+    final colors = context.theme.colors;
+    final typography = context.theme.typography;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
           'For businesses new to MK Roster',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 15),
+          style: typography.body.sm.copyWith(color: colors.mutedForeground),
         ),
         const SizedBox(height: 24),
-        const Text('Business name', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextField(controller: _businessNameController),
+        FTextField(
+          control: FTextFieldControl.managed(controller: _businessNameController),
+          label: const Text('Business name'),
+        ),
         const SizedBox(height: 16),
-        const Text('ABN', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextField(controller: _abnController),
+        FTextField(
+          control: FTextFieldControl.managed(controller: _abnController),
+          label: const Text('ABN'),
+        ),
         const SizedBox(height: 16),
-        const Text('Industry', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextField(controller: _industryController),
+        FTextField(
+          control: FTextFieldControl.managed(controller: _industryController),
+          label: const Text('Industry'),
+        ),
         const SizedBox(height: 16),
-        const Text('Address', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextField(controller: _addressController),
+        FTextField(
+          control: FTextFieldControl.managed(controller: _addressController),
+          label: const Text('Address'),
+        ),
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'YOUR ADMIN ACCOUNT',
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
+          style: typography.body.xs.copyWith(
+            color: colors.mutedForeground,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
           ),
         ),
-        const Divider(color: AppColors.border, height: 20),
-        const Text('Your name', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextField(controller: _adminNameController),
+        FDivider(style: .delta(color: colors.border)),
+        const SizedBox(height: 4),
+        FTextField(
+          control: FTextFieldControl.managed(controller: _adminNameController),
+          label: const Text('Your name'),
+        ),
         const SizedBox(height: 16),
-        const Text('Email', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextField(controller: _adminEmailController, keyboardType: TextInputType.emailAddress),
+        FTextField(
+          control: FTextFieldControl.managed(controller: _adminEmailController),
+          label: const Text('Email'),
+          keyboardType: TextInputType.emailAddress,
+        ),
         const SizedBox(height: 16),
-        const Text('Password', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextField(controller: _adminPasswordController, obscureText: true),
+        FTextField(
+          control: FTextFieldControl.managed(controller: _adminPasswordController),
+          label: const Text('Password'),
+          obscureText: true,
+        ),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppColors.surfaceAlt,
+            color: colors.muted,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+            border: Border.all(color: colors.border),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'YOUR WORKSPACE ID',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
+                style: typography.body.xs2.copyWith(
+                  color: colors.mutedForeground,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                 ),
               ),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Text(
                 'appears here once created — share it with your crew',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
+                style: typography.body.sm.copyWith(
+                  color: colors.mutedForeground,
                   fontFamily: 'monospace',
                 ),
               ),
@@ -149,20 +165,20 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.errorBg,
+              color: colors.error.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Text(_error!, style: const TextStyle(color: AppColors.error)),
+            child: Text(_error!, style: TextStyle(color: colors.error)),
           ),
         ],
         const SizedBox(height: 24),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
+        FButton(
+          onPress: _submitting ? null : _submit,
           child: _submitting
               ? const SizedBox(
                   height: 20,
                   width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentText),
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Text('Create workspace'),
         ),
@@ -170,33 +186,34 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
     );
   }
 
-  Widget _buildSuccess(AuthResult session) {
+  Widget _buildSuccess(BuildContext context, AuthResult session) {
+    final typography = context.theme.typography;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 20),
-        const Icon(Icons.check_circle, color: AppColors.success, size: 56),
+        const Icon(Icons.check_circle, color: Colors.green, size: 56),
         const SizedBox(height: 20),
         Text(
           'Workspace created',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 24),
+          style: typography.display.xl,
         ),
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.successBg,
+            color: Colors.green.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text(
+              Text(
                 'YOUR WORKSPACE ID',
-                style: TextStyle(
-                  color: AppColors.success,
-                  fontSize: 11,
+                style: typography.body.xs2.copyWith(
+                  color: Colors.green.shade700,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                 ),
@@ -204,25 +221,23 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
               const SizedBox(height: 8),
               Text(
                 session.organizationId,
-                style: const TextStyle(
-                  color: AppColors.success,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
+                style: typography.display.xl.copyWith(
+                  color: Colors.green.shade700,
                   letterSpacing: 2,
                   fontFamily: 'monospace',
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'share it with your crew',
-                style: TextStyle(color: AppColors.success, fontSize: 12),
+                style: typography.body.xs.copyWith(color: Colors.green.shade700),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pushReplacement(
+        FButton(
+          onPress: () => Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => HomePage(session: session)),
           ),
           child: const Text('Continue'),
