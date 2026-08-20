@@ -20,15 +20,12 @@ class Header extends StatelessWidget {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
       if (!context.mounted) return;
-      // Бүх өмнөх screen-ийг цэвэрлээд Landing page руу буцаах
+      // Бүх өмнөх screen-ийг цэвэрлээд Landing page руу буцаана
       rootNavigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LandingPage()),
         (route) => false,
       );
     }
-
-    // sheet-ийг хааж, дараа нь shell-ийн body-г солино (route солихгүй тул
-    // Header дахин үүсэхгүй).
     void select(BuildContext sheetContext, AppSection section) {
       Navigator.of(sheetContext).pop();
       onSelectSection(section);

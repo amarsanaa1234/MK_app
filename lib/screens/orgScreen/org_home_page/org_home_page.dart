@@ -151,7 +151,6 @@ class OrgCard extends StatelessWidget {
               child: employees,
             ),
             const SizedBox(height: 6),
-            // child,
             FButton(
               onPress: () => _openDirections(address),
               child: const Text('Get directions'),

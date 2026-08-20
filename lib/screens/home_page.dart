@@ -5,8 +5,6 @@ import 'package:mk_app/screens/orgScreen/org_profile/org_profile.dart';
 
 import '../api/api_client.dart';
 
-/// The sections reachable from the sidebar. Adding a new sidebar destination
-/// means adding a case here and a matching branch in [_HomePageState._body].
 enum AppSection {
   dashboard,
   profile,
@@ -51,8 +49,6 @@ class _HomePageState extends State<HomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header is built once here and never rebuilt when the section
-            // changes below — only the body swaps.
             Header(session: widget.session, onSelectSection: _select),
             Expanded(
               child: Center(
