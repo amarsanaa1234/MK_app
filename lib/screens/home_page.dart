@@ -27,12 +27,10 @@ class HomePage extends StatelessWidget {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 380),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        OrgHomePage(session: session),
+                        Expanded(child: OrgHomePage(session: session)),
                         // const SizedBox(height: 8),
                         // Text(
                         //   '${session.userType} · ${session.organizationId}',
@@ -49,7 +47,6 @@ class HomePage extends StatelessWidget {
                         // ),
                       ],
                     ),
-                  ),
                 ),
               ),
             ),
