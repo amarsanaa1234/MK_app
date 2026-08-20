@@ -2,57 +2,63 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:mk_app/api/api_client.dart';
 import 'package:mk_app/screens/landing_page.dart';
-import 'package:mk_app/screens/orgScreen/org_home_page/org_home_page.dart';
-import 'package:mk_app/screens/orgScreen/org_profile/org_profile.dart';
+import 'package:mk_app/screens/home_page.dart';
 import 'package:mk_app/theme/theme_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class Header extends StatelessWidget {
   final AuthResult session;
-  const Header({super.key, required this.session});
+
+  final ValueChanged<AppSection> onSelectSection;
+  const Header({super.key, required this.session, required this.onSelectSection});
 
   @override
   Widget build(BuildContext context) {
+    final rootNavigator = Navigator.of(context);
 
     Future<void> logout(BuildContext context) async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
       if (!context.mounted) return;
       // Бүх өмнөх screen-ийг цэвэрлээд Landing page руу буцаах
-      Navigator.of(context).pushAndRemoveUntil(
+      rootNavigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LandingPage()),
-            (route) => false,
+        (route) => false,
       );
     }
 
+    // sheet-ийг хааж, дараа нь shell-ийн body-г солино (route солихгүй тул
+    // Header дахин үүсэхгүй).
+    void select(BuildContext sheetContext, AppSection section) {
+      Navigator.of(sheetContext).pop();
+      onSelectSection(section);
+    }
+
     return FHeader(
-        title: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Hi ${session.fullName}',
-                style: context.theme.typography.display.lg,
+      title: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Hi ${session.fullName}', style: context.theme.typography.display.lg),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF232830),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF232830),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'MK Removals · Sydney',
-                  style: context.theme.typography.body.sm.copyWith(
-                    color: context.theme.colors.mutedForeground,
-                  ),
+              child: Text(
+                'MK Removals · Sydney',
+                style: context.theme.typography.body.sm.copyWith(
+                  color: context.theme.colors.mutedForeground,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
       suffixes: [
         FHeaderAction(
           icon: FAvatar.raw(
@@ -62,23 +68,17 @@ class Header extends StatelessWidget {
           onPress: () => showFSheet(
             context: context,
             side: .ltr,
-            builder: (context) => DecoratedBox(
+            builder: (sheetContext) => DecoratedBox(
               decoration: BoxDecoration(color: context.theme.colors.background),
               child: FSidebar(
-                style: const .delta(
-                  constraints: BoxConstraints(minWidth: 300, maxWidth: 300),
-                ),
+                style: const .delta(constraints: BoxConstraints(minWidth: 300, maxWidth: 300)),
                 footer: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Material(
-                  color: Colors.transparent,
+                    color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => OrgProfile(session: session)),
-                        );
-                      },
+                      onTap: () => select(sheetContext, AppSection.profile),
                       child: FCard(
                         child: Padding(
                           padding: const .symmetric(vertical: 12, horizontal: 16),
@@ -121,7 +121,6 @@ class Header extends StatelessWidget {
                       ),
                     ),
                   ),
-
                 ),
                 children: [
                   FSidebarGroup(
@@ -131,28 +130,31 @@ class Header extends StatelessWidget {
                         icon: const Icon(FLucideIcons.school),
                         label: const Text('Getting Started'),
                         initiallyExpanded: true,
-                        onPress: () {},
+                        onPress: () => select(sheetContext, AppSection.gettingStarted),
                         children: [
                           FSidebarItem(
                             label: const Text('Empoyees'),
-                            onPress: () {},
+                            onPress: () => select(sheetContext, AppSection.employees),
                           ),
-                          FSidebarItem(label: const Text('Payroll'), onPress: () {}),
+                          FSidebarItem(
+                            label: const Text('Payroll'),
+                            onPress: () => select(sheetContext, AppSection.payroll),
+                          ),
                           FSidebarItem(
                             label: const Text('Timesheets'),
-                            onPress: () {},
+                            onPress: () => select(sheetContext, AppSection.timesheets),
                           ),
                         ],
                       ),
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.box),
                         label: const Text('My roster'),
-                        onPress: () {},
+                        onPress: () => select(sheetContext, AppSection.myRoster),
                       ),
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.code),
                         label: const Text('Pay rates'),
-                        onPress: () {},
+                        onPress: () => select(sheetContext, AppSection.payRates),
                       ),
                     ],
                   ),
@@ -162,20 +164,17 @@ class Header extends StatelessWidget {
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.circleSlash),
                         label: const Text('Post a job'),
-                        // selected: true,
-                        onPress: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => OrgHomePage(session: session)),
-                        ),
+                        onPress: () => select(sheetContext, AppSection.dashboard),
                       ),
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.scaling),
                         label: const Text('Organizations'),
-                        onPress: () {},
+                        onPress: () => select(sheetContext, AppSection.organizations),
                       ),
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.layoutDashboard),
                         label: const Text('Dashbourd'),
-                        onPress: () {},
+                        onPress: () => select(sheetContext, AppSection.dashboard),
                       ),
                       Padding(
                         padding: const EdgeInsets.all(8),
@@ -204,7 +203,7 @@ class Header extends StatelessWidget {
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.layoutDashboard),
                         label: const Text('Log out'),
-                        onPress: () => logout(context)
+                        onPress: () => logout(sheetContext),
                       ),
                     ],
                   ),

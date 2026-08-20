@@ -1,52 +1,64 @@
 import 'package:flutter/material.dart';
-import 'package:forui/forui.dart';
 import 'package:mk_app/screens/header/header.dart';
 import 'package:mk_app/screens/orgScreen/org_home_page/org_home_page.dart';
+import 'package:mk_app/screens/orgScreen/org_profile/org_profile.dart';
 
 import '../api/api_client.dart';
-import 'landing_page.dart';
 
-class HomePage extends StatelessWidget {
+/// The sections reachable from the sidebar. Adding a new sidebar destination
+/// means adding a case here and a matching branch in [_HomePageState._body].
+enum AppSection {
+  dashboard,
+  profile,
+  organizations,
+  myRoster,
+  payRates,
+  gettingStarted,
+  employees,
+  payroll,
+  timesheets,
+}
+
+class HomePage extends StatefulWidget {
   final AuthResult session;
 
   const HomePage({super.key, required this.session});
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  AppSection _section = AppSection.dashboard;
+
+  void _select(AppSection section) => setState(() => _section = section);
+
+  Widget _body() => switch (_section) {
+    AppSection.dashboard => OrgHomePage(session: widget.session),
+    AppSection.profile => OrgProfile(session: widget.session),
+    AppSection.organizations => const _ComingSoon(title: 'Organizations'),
+    AppSection.myRoster => const _ComingSoon(title: 'My roster'),
+    AppSection.payRates => const _ComingSoon(title: 'Pay rates'),
+    AppSection.gettingStarted => const _ComingSoon(title: 'Getting Started'),
+    AppSection.employees => const _ComingSoon(title: 'Employees'),
+    AppSection.payroll => const _ComingSoon(title: 'Payroll'),
+    AppSection.timesheets => const _ComingSoon(title: 'Timesheets'),
+  };
+
+  @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
-    final typography = context.theme.typography;
-
-    print('sda-giin data =>>>>>>>> ${session.userType}');
-
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            Header(session: session),
+            // Header is built once here and never rebuilt when the section
+            // changes below — only the body swaps.
+            Header(session: widget.session, onSelectSection: _select),
             Expanded(
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 380),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: OrgHomePage(session: session)),
-                        // const SizedBox(height: 8),
-                        // Text(
-                        //   '${session.userType} · ${session.organizationId}',
-                        //   style: typography.body.sm.copyWith(color: colors.mutedForeground),
-                        // ),
-                        // const SizedBox(height: 32),
-                        // FButton(
-                        //   variant: .outline,
-                        //   onPress: () => Navigator.of(context).pushAndRemoveUntil(
-                        //     MaterialPageRoute(builder: (_) => const LandingPage()),
-                        //     (route) => false,
-                        //   ),
-                        //   child: const Text('Log out'),
-                        // ),
-                      ],
-                    ),
+                  child: _body(),
                 ),
               ),
             ),
@@ -55,4 +67,14 @@ class HomePage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ComingSoon extends StatelessWidget {
+  final String title;
+  const _ComingSoon({required this.title});
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Text('$title — coming soon', style: Theme.of(context).textTheme.bodyMedium),
+  );
 }
