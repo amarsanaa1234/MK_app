@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../api/api_client.dart';
 import 'home_page.dart';
@@ -25,6 +27,24 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
   bool _lookingUp = false;
   bool _submitting = false;
   String? _error;
+
+  XFile? _avatar;
+  Uint8List? _avatarBytes;
+
+  Future<void> _pickAvatar() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _avatar = picked;
+      _avatarBytes = bytes;
+    });
+  }
 
   @override
   void initState() {
@@ -66,6 +86,7 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
         organizationId: _orgIdController.text.trim(),
+        photo: _avatar,
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -100,6 +121,43 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                         Text(
                           "You'll join your team's workspace with a code from the office.",
                           style: typography.body.sm.copyWith(color: colors.mutedForeground),
+                        ),
+                        const SizedBox(height: 24),
+                        Center(
+                          child: GestureDetector(
+                            onTap: _pickAvatar,
+                            child: Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 44,
+                                  backgroundColor: colors.secondary,
+                                  backgroundImage: _avatarBytes != null
+                                      ? MemoryImage(_avatarBytes!)
+                                      : null,
+                                  child: _avatarBytes == null
+                                      ? Icon(Icons.person, size: 40, color: colors.mutedForeground)
+                                      : null,
+                                ),
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: colors.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: colors.background, width: 2),
+                                    ),
+                                    child: Icon(
+                                      Icons.camera_alt,
+                                      size: 16,
+                                      color: colors.primaryForeground,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 24),
                         FTextField(

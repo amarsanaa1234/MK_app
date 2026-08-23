@@ -12,10 +12,16 @@ class Header extends StatelessWidget {
   final ValueChanged<AppSection> onSelectSection;
   const Header({super.key, required this.session, required this.onSelectSection});
 
+  String get _initials {
+    final trimmed = session.fullName.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed.substring(0, trimmed.length >= 2 ? 2 : trimmed.length).toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final rootNavigator = Navigator.of(context);
-
+    // debugPrint('session: ${session.userId} ${session.fullName} ${session}');
     Future<void> logout(BuildContext context) async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
@@ -58,10 +64,16 @@ class Header extends StatelessWidget {
       ),
       suffixes: [
         FHeaderAction(
-          icon: FAvatar.raw(
-            style: const .delta(backgroundColor: Color(0xFF2E609A)),
-            child: const Text('MN'),
-          ),
+          icon: session.photoUrl != null && session.photoUrl!.isNotEmpty
+              ? FAvatar(
+                  image: NetworkImage(session.photoUrl!),
+                  style: const .delta(backgroundColor: Color(0xFF2E609A)),
+                  fallback: Text(_initials),
+                )
+              : FAvatar.raw(
+                  style: const .delta(backgroundColor: Color(0xFF2E609A)),
+                  child: Text(_initials),
+                ),
           onPress: () => showFSheet(
             context: context,
             side: .ltr,
@@ -82,12 +94,15 @@ class Header extends StatelessWidget {
                           child: Row(
                             spacing: 10,
                             children: [
-                              FAvatar.raw(
-                                child: Icon(
-                                  FLucideIcons.userRound,
-                                  size: 18,
-                                  color: context.theme.colors.mutedForeground,
-                                ),
+                              session.photoUrl != null && session.photoUrl!.isNotEmpty
+                                  ? FAvatar(
+                                image: NetworkImage(session.photoUrl!),
+                                style: const .delta(backgroundColor: Color(0xFF2E609A)),
+                                fallback: Text(_initials),
+                              )
+                                  : FAvatar.raw(
+                                style: const .delta(backgroundColor: Color(0xFF2E609A)),
+                                child: Text(_initials),
                               ),
                               Expanded(
                                 child: Column(
@@ -95,7 +110,7 @@ class Header extends StatelessWidget {
                                   spacing: 2,
                                   children: [
                                     Text(
-                                      'Dash',
+                                      '${session.fullName}',
                                       style: context.theme.typography.body.sm.copyWith(
                                         fontWeight: .bold,
                                         color: context.theme.colors.foreground,
@@ -103,7 +118,7 @@ class Header extends StatelessWidget {
                                       overflow: .ellipsis,
                                     ),
                                     Text(
-                                      'dash@forui.dev',
+                                      '${session.organizationId}',
                                       style: context.theme.typography.body.xs.copyWith(
                                         color: context.theme.colors.mutedForeground,
                                       ),

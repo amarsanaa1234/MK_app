@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../api/api_client.dart';
 import 'home_page.dart';
@@ -23,6 +26,23 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
   bool _submitting = false;
   String? _error;
   AuthResult? _created;
+  XFile? _avatar;
+  Uint8List? _avatarBytes;
+
+  Future<void> _pickAvatar() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _avatar = picked;
+      _avatarBytes = bytes;
+    });
+  }
 
   Future<void> _submit() async {
     setState(() {
@@ -38,6 +58,7 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
         adminName: _adminNameController.text.trim(),
         adminEmail: _adminEmailController.text.trim(),
         adminPassword: _adminPasswordController.text,
+        photo: _avatar,
       );
       if (!mounted) return;
       setState(() => _created = session);
@@ -113,7 +134,38 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
           ),
         ),
         FDivider(style: .delta(color: colors.border)),
-        const SizedBox(height: 4),
+        const SizedBox(height: 16),
+        Center(
+          child: GestureDetector(
+            onTap: _pickAvatar,
+            child: Stack(
+              children: [
+                CircleAvatar(
+                  radius: 44,
+                  backgroundColor: colors.secondary,
+                  backgroundImage: _avatarBytes != null ? MemoryImage(_avatarBytes!) : null,
+                  child: _avatarBytes == null
+                      ? Icon(Icons.person, size: 40, color: colors.mutedForeground)
+                      : null,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.background, width: 2),
+                    ),
+                    child: Icon(Icons.camera_alt, size: 16, color: colors.primaryForeground),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         FTextField(
           control: FTextFieldControl.managed(controller: _adminNameController),
           label: const Text('Your name'),

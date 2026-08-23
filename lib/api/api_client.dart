@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 const String apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
@@ -21,6 +22,9 @@ class AuthResult {
   final String fullName;
   final String token;
   final String organizationId;
+  final String? photoUrl;
+  final String address;
+  final String industry;
 
   AuthResult({
     required this.userId,
@@ -28,6 +32,9 @@ class AuthResult {
     required this.fullName,
     required this.token,
     required this.organizationId,
+    this.photoUrl,
+    required this.address,
+    required this.industry,
   });
 
   factory AuthResult.fromJson(Map<String, dynamic> json) => AuthResult(
@@ -36,6 +43,9 @@ class AuthResult {
     fullName: json['fullName'] as String,
     token: json['token'] as String,
     organizationId: json['organizationId'] as String,
+    photoUrl: json['photoUrl'] as String?,
+    address: json['address'] as String,
+    industry: json['industry'] as String,
   );
 }
 
@@ -90,17 +100,26 @@ class ApiClient {
     required String email,
     required String password,
     required String organizationId,
+    XFile? photo,
   }) async {
-    final res = await http.post(
+    final request = http.MultipartRequest(
+      'POST',
       Uri.parse('$apiBaseUrl/api/auth/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'fullName': fullName,
-        'username': email,
-        'password': password,
-        'organizationId': organizationId,
-      }),
-    );
+    )
+      ..fields['fullName'] = fullName
+      ..fields['username'] = email
+      ..fields['password'] = password
+      ..fields['organizationId'] = organizationId;
+
+    if (photo != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes('photo', await photo.readAsBytes(), filename: photo.name),
+      );
+    }
+
+    final streamedRes = await request.send();
+    final res = await http.Response.fromStream(streamedRes);
+
     if (res.statusCode != 201) {
       _throwFromError(res, 'Бүртгэл амжилтгүй боллоо');
     }
@@ -115,20 +134,29 @@ class ApiClient {
     required String adminName,
     required String adminEmail,
     required String adminPassword,
+    XFile? photo,
   }) async {
-    final res = await http.post(
+    final request = http.MultipartRequest(
+      'POST',
       Uri.parse('$apiBaseUrl/api/workspaces'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'businessName': businessName,
-        'abn': abn,
-        'industry': industry,
-        'address': address,
-        'adminName': adminName,
-        'adminEmail': adminEmail,
-        'adminPassword': adminPassword,
-      }),
-    );
+    )
+      ..fields['businessName'] = businessName
+      ..fields['abn'] = abn
+      ..fields['industry'] = industry
+      ..fields['address'] = address
+      ..fields['adminName'] = adminName
+      ..fields['adminEmail'] = adminEmail
+      ..fields['adminPassword'] = adminPassword;
+
+    if (photo != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes('photo', await photo.readAsBytes(), filename: photo.name),
+      );
+    }
+
+    final streamedRes = await request.send();
+    final res = await http.Response.fromStream(streamedRes);
+
     if (res.statusCode != 201) {
       _throwFromError(res, 'Байгууллага үүсгэхэд алдаа гарлаа');
     }
