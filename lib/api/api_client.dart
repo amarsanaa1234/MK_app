@@ -5,7 +5,10 @@ import 'package:image_picker/image_picker.dart';
 
 const String apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://localhost:8080',
+  // Бодит утас дээр ажиллуулахад "localhost" нь утасны өөрийнх нь localhost-ыг
+  // заадаг тул компьютерийн LAN IP хаягийг ашиглана. Сүлжээ солигдвол энэ IP-г
+  // шинэчлэх, эсвэл --dart-define=API_BASE_URL=http://<IP>:8080 ашиглаарай.
+  defaultValue: 'http://192.168.1.240:8080',
 );
 
 class ApiException implements Exception {
