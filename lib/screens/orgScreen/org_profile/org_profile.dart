@@ -2,14 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:mk_app/api/api_client.dart';
-import 'package:mk_app/theme/app_theme.dart';
 
-class OrgProfile extends StatelessWidget {
+class OrgProfile extends StatefulWidget {
   final AuthResult session;
   const OrgProfile({super.key, required this.session});
 
+  @override
+  State<OrgProfile> createState() => _OrgProfileState();
+}
+
+class _OrgProfileState extends State<OrgProfile> {
+  late Future<WorkspaceProfile> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ApiClient.getMyWorkspace(widget.session.token);
+  }
+
+  Future<void> _refresh() {
+    final future = ApiClient.getMyWorkspace(widget.session.token);
+    setState(() => _future = future);
+    return future;
+  }
+
   String get _initials {
-    final trimmed = session.fullName.trim();
+    final trimmed = widget.session.fullName.trim();
     if (trimmed.isEmpty) return '';
     return trimmed.substring(0, trimmed.length >= 2 ? 2 : trimmed.length).toUpperCase();
   }
@@ -49,9 +67,38 @@ class OrgProfile extends StatelessWidget {
     ).showSnackBar(const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)));
   }
 
+  Widget _detailRow(BuildContext context, String label, String? value) {
+    final colors = context.theme.colors;
+    final typography = context.theme.typography;
+    final labelStyle = typography.body.xs.copyWith(
+      color: colors.mutedForeground,
+      fontWeight: FontWeight.bold,
+      letterSpacing: 1.2,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Text(label.toUpperCase(), style: labelStyle),
+          Expanded(
+            child: Text(
+              (value == null || value.isEmpty) ? '—' : value,
+              textAlign: TextAlign.end,
+              style: typography.body.sm.copyWith(color: colors.foreground),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final session = widget.session;
     final hasPhoto = session.photoUrl != null && session.photoUrl!.isNotEmpty;
+    final colors = context.theme.colors;
+    final typography = context.theme.typography;
 
     return Align(
       alignment: Alignment.topCenter,
@@ -66,7 +113,7 @@ class OrgProfile extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                color: AppColors.accent,
+                color: colors.primary,
                 image: hasPhoto
                     ? DecorationImage(image: NetworkImage(session.photoUrl!), fit: BoxFit.cover)
                     : null,
@@ -76,10 +123,10 @@ class OrgProfile extends StatelessWidget {
                   ? null
                   : Text(
                       _initials,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.accentText,
+                        color: colors.primaryForeground,
                       ),
                     ),
             ),
@@ -87,17 +134,13 @@ class OrgProfile extends StatelessWidget {
             Text(
               session.fullName,
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+              style: typography.display.lg,
             ),
             const SizedBox(height: 6),
             Text(
               '${session.address} · ${session.industry}',
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: context.theme.colors.mutedForeground),
+              style: typography.body.sm.copyWith(color: colors.mutedForeground),
             ),
             const SizedBox(height: 16),
             Wrap(
@@ -113,6 +156,66 @@ class OrgProfile extends StatelessWidget {
                 ),
                 _pill(context, session.userType),
               ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Text(
+                  'BUSINESS DETAILS',
+                  style: typography.body.xs.copyWith(
+                    color: colors.mutedForeground,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: FDivider(style: .delta(color: colors.border))),
+              ],
+            ),
+            const SizedBox(height: 8),
+            FutureBuilder<WorkspaceProfile>(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      children: [
+                        Text(
+                          snapshot.error.toString(),
+                          textAlign: TextAlign.center,
+                          style: typography.body.sm.copyWith(color: colors.error),
+                        ),
+                        const SizedBox(height: 8),
+                        FButton(
+                          variant: .outline,
+                          size: .sm,
+                          onPress: _refresh,
+                          child: const Text('Дахин оролдох'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final profile = snapshot.data!;
+                return Column(
+                  children: [
+                    _detailRow(context, 'ABN', profile.abn),
+                    FDivider(style: .delta(color: colors.border)),
+                    _detailRow(context, 'Address', profile.address),
+                    FDivider(style: .delta(color: colors.border)),
+                    _detailRow(context, 'Phone', profile.phone),
+                  ],
+                );
+              },
             ),
           ],
         ),

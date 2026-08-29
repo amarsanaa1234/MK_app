@@ -70,6 +70,33 @@ class WorkspaceInfo {
   );
 }
 
+class WorkspaceProfile {
+  final String organizationId;
+  final String businessName;
+  final String? abn;
+  final String? industry;
+  final String? address;
+  final String? phone;
+
+  WorkspaceProfile({
+    required this.organizationId,
+    required this.businessName,
+    this.abn,
+    this.industry,
+    this.address,
+    this.phone,
+  });
+
+  factory WorkspaceProfile.fromJson(Map<String, dynamic> json) => WorkspaceProfile(
+    organizationId: json['organizationId'] as String,
+    businessName: json['businessName'] as String,
+    abn: json['abn'] as String?,
+    industry: json['industry'] as String?,
+    address: json['address'] as String?,
+    phone: json['phone'] as String?,
+  );
+}
+
 class ApiClient {
   static Map<String, dynamic> _decode(http.Response res) {
     return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
@@ -164,6 +191,20 @@ class ApiClient {
       _throwFromError(res, 'Байгууллага үүсгэхэд алдаа гарлаа');
     }
     return AuthResult.fromJson(_decode(res));
+  }
+
+  /// Токеноор баталгаажсан хэрэглэгчийн харьяалагдах байгууллагын бүрэн
+  /// мэдээллийг backend-ээс шинээр татна. Session дотор кэшлэгдсэн industry/
+  /// address-аас илүү, ABN болон утасны дугаар зэрэг бүрэн мэдээллийг авчирна.
+  static Future<WorkspaceProfile> getMyWorkspace(String token) async {
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/api/workspaces/me'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Байгууллагын мэдээлэл татахад алдаа гарлаа');
+    }
+    return WorkspaceProfile.fromJson(_decode(res));
   }
 
   static Future<WorkspaceInfo?> lookupWorkspace(String organizationId) async {
