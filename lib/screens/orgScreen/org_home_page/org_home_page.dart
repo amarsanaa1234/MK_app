@@ -5,12 +5,22 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:mk_app/api/api_client.dart';
 
+import 'org_sheet.dart';
+
 class OrgHomePage extends StatelessWidget {
   final AuthResult session;
   const OrgHomePage({required this.session, super.key});
 
   @override
-  Widget build(BuildContext _) => Column(
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.transparent,
+    floatingActionButton: FloatingActionButton(
+      onPressed: () => openNewPostSheet(context, session),
+      backgroundColor: context.theme.colors.primary,
+      foregroundColor: context.theme.colors.primaryForeground,
+      child: const Icon(Icons.add),
+    ),
+    body: Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Expanded(
@@ -65,6 +75,7 @@ class OrgHomePage extends StatelessWidget {
         ),
       ),
     ],
+    ),
   );
 }
 

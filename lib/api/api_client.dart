@@ -97,6 +97,30 @@ class WorkspaceProfile {
   );
 }
 
+class Employee {
+  final String id;
+  final String fullName;
+  final String userType;
+  final String? phone;
+  final String? photoUrl;
+
+  Employee({
+    required this.id,
+    required this.fullName,
+    required this.userType,
+    this.phone,
+    this.photoUrl,
+  });
+
+  factory Employee.fromJson(Map<String, dynamic> json) => Employee(
+    id: json['id'] as String,
+    fullName: json['fullName'] as String,
+    userType: json['userType'] as String,
+    phone: json['phone'] as String?,
+    photoUrl: json['photoUrl'] as String?,
+  );
+}
+
 class ApiClient {
   static Map<String, dynamic> _decode(http.Response res) {
     return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
@@ -205,6 +229,21 @@ class ApiClient {
       _throwFromError(res, 'Байгууллагын мэдээлэл татахад алдаа гарлаа');
     }
     return WorkspaceProfile.fromJson(_decode(res));
+  }
+
+  /// Токеноор баталгаажсан админы байгууллагад бүртгэлтэй Employee
+  /// статустай бүх ажилчдын жагсаалтыг татна. Backend JSON массив
+  /// буцаадаг тул Map-руу decode хийдэг _decode()-г ашиглахгүй.
+  static Future<List<Employee>> getEmployeeList(String token) async {
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/api/workspaces/getEmployees'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Ажилчдын жагсаалт татахад алдаа гарлаа');
+    }
+    final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+    return list.map((e) => Employee.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   static Future<WorkspaceInfo?> lookupWorkspace(String organizationId) async {
