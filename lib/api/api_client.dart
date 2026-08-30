@@ -152,8 +152,11 @@ class ApiClient {
   static Future<AuthResult> registerEmployee({
     required String fullName,
     required String email,
+    required String phone,
     required String password,
     required String organizationId,
+    required String address,
+    required String abn,
     XFile? photo,
   }) async {
     final request = http.MultipartRequest(
@@ -162,8 +165,11 @@ class ApiClient {
     )
       ..fields['fullName'] = fullName
       ..fields['username'] = email
+      ..fields['phone'] = phone
       ..fields['password'] = password
-      ..fields['organizationId'] = organizationId;
+      ..fields['organizationId'] = organizationId
+      ..fields['abn'] = abn
+      ..fields['addressLine'] = address;
 
     if (photo != null) {
       request.files.add(
@@ -187,6 +193,7 @@ class ApiClient {
     required String address,
     required String adminName,
     required String adminEmail,
+    required String adminPhone,
     required String adminPassword,
     XFile? photo,
   }) async {
@@ -200,6 +207,7 @@ class ApiClient {
       ..fields['address'] = address
       ..fields['adminName'] = adminName
       ..fields['adminEmail'] = adminEmail
+      ..fields['phone'] = adminPhone
       ..fields['adminPassword'] = adminPassword;
 
     if (photo != null) {

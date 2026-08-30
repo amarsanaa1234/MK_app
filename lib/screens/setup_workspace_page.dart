@@ -21,6 +21,7 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
   final _addressController = TextEditingController();
   final _adminNameController = TextEditingController();
   final _adminEmailController = TextEditingController();
+  final _adminPhoneController = TextEditingController();
   final _adminPasswordController = TextEditingController();
 
   bool _submitting = false;
@@ -57,6 +58,7 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
         address: _addressController.text.trim(),
         adminName: _adminNameController.text.trim(),
         adminEmail: _adminEmailController.text.trim(),
+        adminPhone: _adminPhoneController.text.trim(),
         adminPassword: _adminPasswordController.text,
         photo: _avatar,
       );
@@ -75,7 +77,12 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
       body: SafeArea(
         child: Column(
           children: [
-            FHeader(title: const Text('Set up your workspace')),
+            FHeader.nested(
+              title: const Text('Set up your workspace'),
+              prefixes: [
+                FHeaderAction.back(onPress: () => Navigator.of(context).pop()),
+              ],
+            ),
             Expanded(
               child: Center(
                 child: ConstrainedBox(
@@ -175,6 +182,12 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
           control: FTextFieldControl.managed(controller: _adminEmailController),
           label: const Text('Email'),
           keyboardType: TextInputType.emailAddress,
+        ),
+        const SizedBox(height: 16),
+        FTextField(
+          control: FTextFieldControl.managed(controller: _adminPhoneController),
+          label: const Text('Phone number'),
+          keyboardType: TextInputType.phone,
         ),
         const SizedBox(height: 16),
         FTextField(

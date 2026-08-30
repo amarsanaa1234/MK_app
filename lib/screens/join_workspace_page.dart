@@ -19,8 +19,11 @@ class JoinWorkspacePage extends StatefulWidget {
 class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _orgIdController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _abnController = TextEditingController();
 
   Timer? _debounce;
   WorkspaceInfo? _workspace;
@@ -56,6 +59,13 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
   void dispose() {
     _debounce?.cancel();
     _orgIdController.removeListener(_onOrgIdChanged);
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _orgIdController.dispose();
+    _abnController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -76,6 +86,10 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
   }
 
   Future<void> _submit() async {
+    if (_workspace == null) {
+      setState(() => _error = 'Байгууллагын ID зөв эсэхийг шалгана уу');
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -84,8 +98,11 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
       final session = await ApiClient.registerEmployee(
         fullName: _fullNameController.text.trim(),
         email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
         password: _passwordController.text,
         organizationId: _orgIdController.text.trim(),
+        address: _addressController.text.trim(),
+        abn: _abnController.text.trim(),
         photo: _avatar,
       );
       if (!mounted) return;
@@ -108,7 +125,12 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
       body: SafeArea(
         child: Column(
           children: [
-            FHeader(title: const Text('Create your account')),
+            FHeader.nested(
+              title: const Text('Create your account'),
+              prefixes: [
+                FHeaderAction.back(onPress: () => Navigator.of(context).pop()),
+              ],
+            ),
             Expanded(
               child: Center(
                 child: ConstrainedBox(
@@ -169,6 +191,22 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                           control: FTextFieldControl.managed(controller: _emailController),
                           label: const Text('Email'),
                           keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: 16),
+                        FTextField(
+                          control: FTextFieldControl.managed(controller: _phoneController),
+                          label: const Text('Phone number'),
+                          keyboardType: TextInputType.phone,
+                        ),
+                        const SizedBox(height: 16),
+                        FTextField(
+                          control: FTextFieldControl.managed(controller: _abnController),
+                          label: const Text('ABN'),
+                        ),
+                        const SizedBox(height: 16),
+                        FTextField(
+                          control: FTextFieldControl.managed(controller: _addressController),
+                          label: const Text('Address'),
                         ),
                         const SizedBox(height: 16),
                         FTextField(
