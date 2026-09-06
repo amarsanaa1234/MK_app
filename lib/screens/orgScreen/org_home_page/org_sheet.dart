@@ -2,6 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:mk_app/api/api_client.dart';
 
+/// "Save as draft" дарахад хадгалагдах локал төлөв (backend рүү явахгүй,
+/// зөвхөн апп ажиллаж байх хугацаанд, дараагийн удаа "New job" нээхэд сэргээгдэнэ).
+class _JobDraft {
+  DateTime? date;
+  FTime? startTime;
+  String? address;
+  String? jobType;
+  String? truck;
+  String? notes;
+  String? leaderId;
+  List<String> crewIds = [];
+}
+
+final _draft = _JobDraft();
+
 /// Доороос гарч ирэх "шинэ ажлын зар нэмэх" sheet-ийг нээнэ.
 void openNewPostSheet(BuildContext context, AuthResult session) {
   showFSheet(
@@ -22,14 +37,20 @@ class NewPostSheet extends StatefulWidget {
 }
 
 class _NewPostSheetState extends State<NewPostSheet> {
-  final _addressController = TextEditingController(text: '21 Crown St, Wollongong NSW');
-  final _truckController = TextEditingController(text: 'Truck 04 · 4T Pantech');
-  final _notesController = TextEditingController();
+  late final _addressController = TextEditingController(
+    text: _draft.address ?? '21 Crown St, Wollongong NSW',
+  );
+  late final _truckController = TextEditingController(
+    text: _draft.truck ?? 'Truck 04 · 4T Pantech',
+  );
+  late final _notesController = TextEditingController(text: _draft.notes ?? '');
 
-  DateTime _date = DateTime.now();
-  FTime _startTime = const FTime(9, 0);
-  String _jobType = 'Office';
-  final List<String> _crew = [];
+  late DateTime _date = _draft.date ?? DateTime.now();
+  late FTime _startTime = _draft.startTime ?? const FTime(9, 0);
+  late String _jobType = _draft.jobType ?? 'Office';
+  Employee? _leader;
+  Set<Employee> _crew = {};
+  bool _submitting = false;
 
   static const _jobTypes = ['Residential', 'Office', 'Piano & specialty', 'Interstate'];
 
@@ -49,72 +70,67 @@ class _NewPostSheetState extends State<NewPostSheet> {
     super.dispose();
   }
 
-  String _initialsOf(String name) {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) return '';
-    final parts = trimmed.split(RegExp(r'\s+'));
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
-  }
+  /// "Save as draft" backend рүү огт хадгалахгүй — одоогийн бөглөсөн бүх
+  /// талбарыг (сонгосон lead/crew-ийн хамт) локал `_draft`-д хадгалаад
+  /// sheet-ийг хаана. Дараагийн удаа "New job" нээхэд эргээд сэргээгдэнэ.
+  void _saveDraftLocally() {
+    _draft
+      ..date = _date
+      ..startTime = _startTime
+      ..address = _addressController.text
+      ..jobType = _jobType
+      ..truck = _truckController.text
+      ..notes = _notesController.text
+      ..leaderId = _leader?.id
+      ..crewIds = _crew.map((e) => e.id).toList();
 
-  Future<void> _addCrew() async {
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add crew member'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: FutureBuilder<List<Employee>>(
-            future: _employeesFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              if (snapshot.hasError) {
-                return Text('Error: ${snapshot.error}');
-              }
-              final available = (snapshot.data ?? [])
-                  .where((e) => !_crew.contains(e.fullName))
-                  .toList();
-              if (available.isEmpty) {
-                return const Text('no employees available');
-              }
-              return SizedBox(
-                height: 320,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: available.length,
-                  itemBuilder: (context, index) {
-                    final employee = available[index];
-                    return ListTile(
-                      leading: CircleAvatar(child: Text(_initialsOf(employee.fullName))),
-                      title: Text(employee.fullName),
-                      onTap: () => Navigator.of(context).pop(employee.fullName),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        ],
-      ),
-    );
-    if (name != null && name.isNotEmpty) {
-      setState(() => _crew.add(name));
-    }
-  }
-
-  void _publish({required bool draft}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(draft ? 'Saved as draft' : 'Published to crew')),
-    );
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop();
+    messenger.showSnackBar(const SnackBar(content: Text('Saved as draft')));
+  }
+
+  Future<void> _publish() async {
+    if (_addressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Site address is required')));
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      await ApiClient.createJobAd(
+        token: widget.session.token,
+        workDate: _date,
+        startHour: _startTime.hour,
+        startMinute: _startTime.minute,
+        addressLine: _addressController.text.trim(),
+        jobType: _jobType,
+        leaderId: _leader?.id,
+        truck: _truckController.text.trim(),
+        crewIds: _crew.map((e) => e.id).toList(),
+        notes: _notesController.text.trim(),
+      );
+      // Амжилттай publish хийгдсэн тул хадгалагдсан drafts-ыг цэвэрлэнэ.
+      _draft
+        ..date = null
+        ..startTime = null
+        ..address = null
+        ..jobType = null
+        ..truck = null
+        ..notes = null
+        ..leaderId = null
+        ..crewIds = [];
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(const SnackBar(content: Text('Published to crew')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
@@ -131,7 +147,6 @@ class _NewPostSheetState extends State<NewPostSheet> {
         top: false,
         child: Column(
           children: [
-            // ─── Header: байгууллагын лого/нэр + дэлгэцийн гарчиг ───
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(
@@ -241,14 +256,44 @@ class _NewPostSheetState extends State<NewPostSheet> {
                         Expanded(
                           child: _FieldLabel(
                             label: 'Lead',
-                            child: _PickerRow(
-                              leading: FAvatar.raw(
-                                size: 28,
-                                style: const .delta(backgroundColor: Color(0xFF2E609A)),
-                                child: Text(_initialsOf(widget.session.fullName)),
-                              ),
-                              text: widget.session.fullName,
-                              onTap: () {},
+                            child: FutureBuilder<List<Employee>>(
+                              future: _employeesFuture,
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState != ConnectionState.done) {
+                                  return const SizedBox(height: 44);
+                                }
+                                // Эхний удаад л draft-аас сэргээнэ (FSelect-ийн
+                                // `initial` зөвхөн үүсэх мөчид л уншигддаг).
+                                if (_leader == null && _draft.leaderId != null) {
+                                  for (final e in snapshot.data ?? const []) {
+                                    if (e.id == _draft.leaderId) {
+                                      _leader = e;
+                                      break;
+                                    }
+                                  }
+                                }
+                                return FSelect<Employee>.searchBuilder(
+                                  hint: 'Select lead',
+                                  format: (e) => e.fullName,
+                                  control: FSelectControl<Employee>.managed(
+                                    initial: _leader,
+                                    onChange: (e) => setState(() => _leader = e),
+                                  ),
+                                  filter: (query) async {
+                                    final employees = await _employeesFuture;
+                                    return query.isEmpty
+                                        ? employees
+                                        : employees.where(
+                                            (e) => e.fullName.toLowerCase().contains(
+                                              query.toLowerCase(),
+                                            ),
+                                          );
+                                  },
+                                  contentBuilder: (context, _, employees) => [
+                                    for (final e in employees) .item(title: Text(e.fullName), value: e),
+                                  ],
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -286,18 +331,41 @@ class _NewPostSheetState extends State<NewPostSheet> {
                         runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          for (final name in _crew)
-                            _CrewChip(
-                              name: name,
-                              initials: _initialsOf(name),
-                              onRemove: () => setState(() => _crew.remove(name)),
-                            ),
-                          FButton(
-                            variant: .ghost,
-                            size: .sm,
-                            mainAxisSize: .min,
-                            onPress: _addCrew,
-                            child: const Text('+ Add crew'),
+                          FutureBuilder<List<Employee>>(
+                            future: _employeesFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState != ConnectionState.done) {
+                                return const SizedBox(height: 24, width: 120);
+                              }
+                              // Эхний удаад л draft-аас сэргээнэ (FMultiSelect-ийн
+                              // `initial` зөвхөн үүсэх мөчид л уншигддаг).
+                              if (_crew.isEmpty && _draft.crewIds.isNotEmpty) {
+                                _crew = (snapshot.data ?? const [])
+                                    .where((e) => _draft.crewIds.contains(e.id))
+                                    .toSet();
+                              }
+                              return FMultiSelect<Employee>.searchBuilder(
+                                hint: const Text('Select crew'),
+                                format: (e) => Text(e.fullName),
+                                control: FMultiValueControl<Employee>.managed(
+                                  initial: _crew,
+                                  onChange: (selected) => setState(() => _crew = selected),
+                                ),
+                                filter: (query) async {
+                                  final employees = await _employeesFuture;
+                                  return query.isEmpty
+                                      ? employees
+                                      : employees.where(
+                                          (e) => e.fullName.toLowerCase().contains(
+                                            query.toLowerCase(),
+                                          ),
+                                        );
+                                },
+                                contentBuilder: (context, _, employees) => [
+                                  for (final e in employees) .item(title: Text(e.fullName), value: e),
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -323,13 +391,19 @@ class _NewPostSheetState extends State<NewPostSheet> {
                 children: [
                   FButton(
                     variant: .ghost,
-                    onPress: () => _publish(draft: true),
+                    onPress: _submitting ? null : _saveDraftLocally,
                     child: const Text('Save as draft'),
                   ),
                   const SizedBox(width: 8),
                   FButton(
-                    onPress: () => _publish(draft: false),
-                    child: const Text('Publish to crew'),
+                    onPress: _submitting ? null : _publish,
+                    child: _submitting
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Publish to crew'),
                   ),
                 ],
               ),
@@ -362,42 +436,6 @@ class _FieldLabel extends StatelessWidget {
       child,
     ],
   );
-}
-
-/// "Lead" мэт avatar + текст-тэй, дарж болдог мөр (одоогоор зөвхөн харагдацын түвшинд).
-class _PickerRow extends StatelessWidget {
-  final Widget leading;
-  final String text;
-  final VoidCallback onTap;
-  const _PickerRow({required this.leading, required this.text, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.theme.colors;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                text,
-                overflow: TextOverflow.ellipsis,
-                style: context.theme.typography.body.sm.copyWith(color: colors.foreground),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// "Job type" сегментчилсэн сонголт.
@@ -445,44 +483,6 @@ class _JobTypeSelector extends StatelessWidget {
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// "Crew" жагсаалт дахь нэг гишүүний chip (устгах 'x'-тэй).
-class _CrewChip extends StatelessWidget {
-  final String name;
-  final String initials;
-  final VoidCallback onRemove;
-  const _CrewChip({required this.name, required this.initials, required this.onRemove});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.theme.colors;
-    return Container(
-      padding: const EdgeInsets.only(left: 4, right: 6, top: 4, bottom: 4),
-      decoration: BoxDecoration(
-        color: colors.background,
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FAvatar.raw(
-            size: 22,
-            style: const .delta(backgroundColor: Color(0xFF2E609A)),
-            child: Text(initials, style: const TextStyle(fontSize: 10)),
-          ),
-          const SizedBox(width: 6),
-          Text(name, style: context.theme.typography.body.xs.copyWith(color: colors.foreground)),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: onRemove,
-            child: Icon(Icons.close, size: 14, color: colors.mutedForeground),
-          ),
         ],
       ),
     );

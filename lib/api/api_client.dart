@@ -254,6 +254,46 @@ class ApiClient {
     return list.map((e) => Employee.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// Шинэ ажлын зар үүсгэнэ. [draft] true бол "Save as draft" (DRAFT
+  /// төлөвтэй), false бол шууд crew-д publish хийнэ (OPEN төлөвтэй).
+  static Future<void> createJobAd({
+    required String token,
+    required DateTime workDate,
+    required int startHour,
+    required int startMinute,
+    required String addressLine,
+    required String jobType,
+    String? leaderId,
+    String? truck,
+    List<String> crewIds = const [],
+    String? notes,
+    bool draft = false,
+  }) async {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/api/job-ads'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'workDate':
+            '${workDate.year}-${twoDigits(workDate.month)}-${twoDigits(workDate.day)}',
+        'startTime': '${twoDigits(startHour)}:${twoDigits(startMinute)}:00',
+        'addressLine': addressLine,
+        'jobType': jobType,
+        if (leaderId != null) 'leaderId': leaderId,
+        if (truck != null) 'truck': truck,
+        'crewIds': crewIds,
+        if (notes != null) 'notes': notes,
+        'draft': draft,
+      }),
+    );
+    if (res.statusCode != 201) {
+      _throwFromError(res, 'Ажлын зар үүсгэхэд алдаа гарлаа');
+    }
+  }
+
   static Future<WorkspaceInfo?> lookupWorkspace(String organizationId) async {
     if (organizationId.trim().isEmpty) return null;
     final res = await http.get(
