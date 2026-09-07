@@ -271,7 +271,7 @@ class ApiClient {
   }) async {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final res = await http.post(
-      Uri.parse('$apiBaseUrl/api/job-ads'),
+      Uri.parse('$apiBaseUrl/api/job-ads/job-create-post'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -290,7 +290,7 @@ class ApiClient {
       }),
     );
     if (res.statusCode != 201) {
-      _throwFromError(res, 'Ажлын зар үүсгэхэд алдаа гарлаа');
+      _throwFromError(res, 'something is wrong.');
     }
   }
 
