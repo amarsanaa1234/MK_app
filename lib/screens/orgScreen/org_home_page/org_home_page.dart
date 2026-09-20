@@ -1,231 +1,231 @@
-
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import 'package:intl/intl.dart';
 import 'package:mk_app/api/api_client.dart';
+import 'package:mk_app/screens/orgScreen/payroll/job_hours_entry_page.dart';
+import 'package:mk_app/widgets/job_card.dart';
 
 import 'org_sheet.dart';
 
-class OrgHomePage extends StatelessWidget {
+class OrgHomePage extends StatefulWidget {
   final AuthResult session;
   const OrgHomePage({required this.session, super.key});
+
+  @override
+  State<OrgHomePage> createState() => _OrgHomePageState();
+}
+
+class _OrgHomePageState extends State<OrgHomePage> {
+  late Future<List<JobAdSummary>> _todayFuture;
+  late Future<List<JobAdSummary>> _upcomingFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    _todayFuture = ApiClient.getJobAds(
+      token: widget.session.token,
+      adminId: widget.session.userId,
+      from: today,
+      to: today,
+    );
+    _upcomingFuture = ApiClient.getJobAds(
+      token: widget.session.token,
+      adminId: widget.session.userId,
+      from: today.add(const Duration(days: 1)),
+      to: today.add(const Duration(days: 7)),
+    );
+  }
+
+  Future<void> _refresh() async {
+    setState(_load);
+    await Future.wait([_todayFuture, _upcomingFuture]);
+  }
+
+  Future<void> _openNewPost() async {
+    await openNewPostSheet(context, widget.session);
+    if (!mounted) return;
+    _refresh();
+  }
+
+  Future<void> _editJob(JobAdSummary job) async {
+    await openNewPostSheet(context, widget.session, existingJob: job);
+    if (!mounted) return;
+    _refresh();
+  }
+
+  Future<void> _enterHours(JobAdSummary job) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => JobHoursEntryPage(session: widget.session, job: job)),
+    );
+    if (saved == true && mounted) _refresh();
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: Colors.transparent,
     floatingActionButton: FloatingActionButton(
-      onPressed: () => openNewPostSheet(context, session),
+      onPressed: _openNewPost,
       backgroundColor: context.theme.colors.primary,
       foregroundColor: context.theme.colors.primaryForeground,
       child: const Icon(Icons.add),
     ),
     body: Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Expanded(
-        child: Padding(
-          padding: const EdgeInsets.all(0),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
           child: FTabs(
             expands: true,
             children: [
-                  .entry(
-                label: const Text('Dayly Work List'),
-                child: ListView(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: OrgCard(
-                        session: session,
-                        date: const Text('Today · Mon 10 Aug'),
-                        address: '10 Footbridge Bvd, Wentworth Point NSW 2127',
-                        description: const Text("08:30 · Office relocation · you're leading"),
-                        employees: const AvatarGroup(
-                          initials: ['AP', 'DM'],
-                          label: Text('with Alofa P., Deng M.'),
-                        ),
-                        status: true,
-                      ),
-                    ),
-                  ],
+              .entry(
+                label: const Text('Today'),
+                child: _JobList(
+                  future: _todayFuture,
+                  onRefresh: _refresh,
+                  emptyText: 'No jobs scheduled today.',
+                  onEdit: _editJob,
+                  onEnterHours: _enterHours,
                 ),
               ),
-                  .entry(
-                label: const Text('Test'),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    OrgCard(
-                      session: session,
-                      date: const Text('Today · Mon 10 Aug text'),
-                      address: '220 George St, Sydney text',
-                      description: const Text("08:30 · Office relocation · you're leading text"),
-                      employees: const AvatarGroup(
-                        initials: ['AP', 'DM'],
-                        label: Text('with Alofa P., Deng M.'),
-                      ),
-                      status: true,
-                    ),
-                  ],
+              .entry(
+                label: const Text('Upcoming'),
+                child: _JobList(
+                  future: _upcomingFuture,
+                  onRefresh: _refresh,
+                  emptyText: 'Nothing coming up in the next 7 days.',
+                  onEdit: _editJob,
+                  onEnterHours: _enterHours,
                 ),
               ),
             ],
           ),
         ),
-      ),
-    ],
+      ],
     ),
   );
 }
 
-class OrgCard extends StatelessWidget {
-  final AuthResult session;
-  final Widget date;
-  final String address;
-  final Widget description;
-  final Widget employees;
-  final bool status;
-  // final Widget child;
+class _JobList extends StatelessWidget {
+  final Future<List<JobAdSummary>> future;
+  final Future<void> Function() onRefresh;
+  final String emptyText;
+  final ValueChanged<JobAdSummary> onEdit;
+  final ValueChanged<JobAdSummary> onEnterHours;
 
-  const OrgCard({
-    required this.date,
-    required this.address,
-    required this.description,
-    required this.employees,
-    required this.status,
-    // required this.child,
-    super.key,
-    required this.session
+  const _JobList({
+    required this.future,
+    required this.onRefresh,
+    required this.emptyText,
+    required this.onEdit,
+    required this.onEnterHours,
   });
 
-  Future<void> _openDirections(String address) async {
-    final uri = Uri.parse(
-      'https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(address)}',
-    );
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final style = context.theme.cardStyle;
-    return FCard(
-      style: style,
-      child: Padding(
-        padding: style.padding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DefaultTextStyle.merge(
-              textHeightBehavior: const TextHeightBehavior(
-                applyHeightToFirstAscent: false,
-                applyHeightToLastDescent: false,
-              ),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontSize: 14,
-                color: const Color(0xFF8AA1C2),
-                fontWeight: FontWeight.bold,
-              ),
-              child: date,
-            ),
-            const SizedBox(height: 2),
-            DefaultTextStyle.merge(
-              textHeightBehavior: const TextHeightBehavior(
-                applyHeightToFirstAscent: false,
-                applyHeightToLastDescent: false,
-              ),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-              child: Text('${address}'),
-            ),
-            const SizedBox(height: 6),
-            DefaultTextStyle.merge(
-              textHeightBehavior: const TextHeightBehavior(
-                applyHeightToFirstAscent: false,
-                applyHeightToLastDescent: false,
-              ),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontSize: 14,
-                color: const Color(0xFF5C6572),
-              ),
-              child: description,
-            ),
-            const SizedBox(height: 6),
-            DefaultTextStyle.merge(
-              textHeightBehavior: const TextHeightBehavior(
-                applyHeightToFirstAscent: false,
-                applyHeightToLastDescent: false,
-              ),
-              style: style.subtitleTextStyle,
-              child: employees,
-            ),
-            const SizedBox(height: 6),
-            FButton(
-              onPress: () => _openDirections(address),
-              child: const Text('Get directions'),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
+  Widget build(BuildContext context) => FutureBuilder<List<JobAdSummary>>(
+    future: future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: FCircularProgress());
+      }
 
-class AvatarGroup extends StatelessWidget {
-  final List<String> initials;
-  final Widget label;
-  final double size;
-  final double overlap;
-
-  const AvatarGroup({
-    required this.initials,
-    required this.label,
-    this.size = 24,
-    this.overlap = 14,
-    super.key,
-  });
-
-  static const _colors = [
-    Color(0xFF3F6B46),
-    Color(0xFF2E4E72),
-    Color(0xFFB5651D),
-    Color(0xFFA23327),
-  ];
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      SizedBox(
-        width: size + overlap * (initials.length - 1),
-        height: size,
-        child: Stack(
-          children: [
-            for (var i = 0; i < initials.length; i++)
-              Positioned(
-                left: overlap * i,
-                child: Container(
-                  width: size,
-                  height: size,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _colors[i % _colors.length],
-                    border: Border.all(color: const Color(0xFF181C22), width: 2),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    initials[i],
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
+      if (snapshot.hasError) {
+        return RefreshIndicator(
+          onRefresh: onRefresh,
+          child: ListView(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  snapshot.error.toString(),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: context.theme.colors.error),
                 ),
               ),
-          ],
+            ],
+          ),
+        );
+      }
+
+      final jobs = [...(snapshot.data ?? const <JobAdSummary>[])]
+        ..sort((a, b) {
+          final byDate = a.workDate.compareTo(b.workDate);
+          if (byDate != 0) return byDate;
+          return (a.startTime ?? '').compareTo(b.startTime ?? '');
+        });
+
+      if (jobs.isEmpty) {
+        return RefreshIndicator(
+          onRefresh: onRefresh,
+          child: ListView(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  emptyText,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: context.theme.colors.mutedForeground),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView.builder(
+          padding: const EdgeInsets.only(bottom: 12),
+          itemCount: jobs.length,
+          itemBuilder: (context, index) {
+            final job = jobs[index];
+            final crew = [if (job.leader != null) job.leader!, ...job.crew];
+            final timeLabel = job.startTime?.substring(0, 5);
+            final descriptionParts = [
+              ?timeLabel,
+              if (job.jobType != null && job.jobType!.isNotEmpty) job.jobType!,
+            ];
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: JobCard(
+                overline: Text(_dateLabel(job.workDate)),
+                status: job.status,
+                addressLine: job.addressLine,
+                descriptionText: descriptionParts.isEmpty ? 'Job details pending' : descriptionParts.join(' · '),
+                notes: job.notes,
+                avatarPeople: crew,
+                avatarLabel: crew.isEmpty
+                    ? null
+                    : Text(
+                        job.leader != null
+                            ? 'Lead: ${job.leader!.fullName}'
+                                  '${job.crew.isNotEmpty ? ' +${job.crew.length}' : ''}'
+                            : 'with ${crew.map((e) => e.fullName).join(', ')}',
+                      ),
+                leader: job.leader,
+                crew: job.crew,
+                onEdit: () => onEdit(job),
+                onEnterHours: () => onEnterHours(job),
+              ),
+            );
+          },
         ),
-      ),
-      const SizedBox(width: 8),
-      DefaultTextStyle.merge(style: const TextStyle(fontSize: 13), child: label),
-    ],
+      );
+    },
   );
+}
+
+String _dateLabel(DateTime date) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final diff = date.difference(today).inDays;
+  final formatted = DateFormat('EEE d MMM').format(date);
+  if (diff == 0) return 'Today · $formatted';
+  if (diff == 1) return 'Tomorrow · $formatted';
+  return formatted;
 }

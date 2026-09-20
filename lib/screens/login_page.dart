@@ -85,13 +85,7 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 24),
                         FButton(
                           onPress: _loading ? null : _login,
-                          child: _loading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Log in'),
+                          child: _loading ? const FCircularProgress(size: .sm) : const Text('Log in'),
                         ),
                       ],
                     ),

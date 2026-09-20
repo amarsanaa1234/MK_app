@@ -30,6 +30,35 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
   XFile? _avatar;
   Uint8List? _avatarBytes;
 
+  @override
+  void initState() {
+    super.initState();
+    for (final controller in [
+      _businessNameController,
+      _abnController,
+      _industryController,
+      _addressController,
+      _adminNameController,
+      _adminEmailController,
+      _adminPhoneController,
+      _adminPasswordController,
+    ]) {
+      controller.addListener(_onFieldChanged);
+    }
+  }
+
+  void _onFieldChanged() => setState(() {});
+
+  bool get _canSubmit =>
+      _businessNameController.text.trim().isNotEmpty &&
+      _abnController.text.trim().isNotEmpty &&
+      _industryController.text.trim().isNotEmpty &&
+      _addressController.text.trim().isNotEmpty &&
+      _adminNameController.text.trim().isNotEmpty &&
+      _adminEmailController.text.trim().isNotEmpty &&
+      _adminPhoneController.text.trim().isNotEmpty &&
+      _adminPasswordController.text.trim().isNotEmpty;
+
   Future<void> _pickAvatar() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
@@ -238,14 +267,8 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
         ],
         const SizedBox(height: 24),
         FButton(
-          onPress: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Create workspace'),
+          onPress: (_submitting || !_canSubmit) ? null : _submit,
+          child: _submitting ? const FCircularProgress(size: .sm) : const Text('Create workspace'),
         ),
       ],
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:mk_app/api/api_client.dart';
+import 'package:mk_app/screens/employeeScreen/notifications_page.dart';
 import 'package:mk_app/screens/landing_page.dart';
 import 'package:mk_app/screens/home_page.dart';
 import 'package:mk_app/theme/theme_controller.dart';
@@ -63,6 +64,7 @@ class Header extends StatelessWidget {
         ),
       ),
       suffixes: [
+        if (session.userType != 'Admin') _NotificationBell(session: session),
         FHeaderAction(
           icon: session.photoUrl != null && session.photoUrl!.isNotEmpty
               ? FAvatar(
@@ -138,50 +140,59 @@ class Header extends StatelessWidget {
                   FSidebarGroup(
                     label: const Text('Home '),
                     children: [
-                      FSidebarItem(
-                        icon: const Icon(FLucideIcons.school),
-                        label: const Text('Getting Started'),
-                        initiallyExpanded: true,
-                        onPress: () => select(sheetContext, AppSection.gettingStarted),
-                        children: [
-                          FSidebarItem(
-                            label: const Text('Empoyees'),
-                            onPress: () => select(sheetContext, AppSection.employees),
-                          ),
-                          FSidebarItem(
-                            label: const Text('Payroll'),
-                            onPress: () => select(sheetContext, AppSection.payroll),
-                          ),
-                          FSidebarItem(
-                            label: const Text('Timesheets'),
-                            onPress: () => select(sheetContext, AppSection.timesheets),
-                          ),
-                        ],
-                      ),
+                      if (session.userType == 'Admin')
+                        FSidebarItem(
+                          icon: const Icon(FLucideIcons.school),
+                          label: const Text('Getting Started'),
+                          initiallyExpanded: true,
+                          onPress: () => select(sheetContext, AppSection.gettingStarted),
+                          children: [
+                            FSidebarItem(
+                              label: const Text('Empoyees'),
+                              onPress: () => select(sheetContext, AppSection.employees),
+                            ),
+                            FSidebarItem(
+                              label: const Text('Payroll'),
+                              onPress: () => select(sheetContext, AppSection.payroll),
+                            ),
+                            FSidebarItem(
+                              label: const Text('Timesheets'),
+                              onPress: () => select(sheetContext, AppSection.timesheets),
+                            ),
+                          ],
+                        ),
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.box),
                         label: const Text('My roster'),
                         onPress: () => select(sheetContext, AppSection.myRoster),
                       ),
-                      FSidebarItem(
-                        icon: const Icon(FLucideIcons.code),
-                        label: const Text('Pay rates'),
-                        onPress: () => select(sheetContext, AppSection.payRates),
-                      ),
+                      if (session.userType != 'Admin')
+                        FSidebarItem(
+                          icon: const Icon(FLucideIcons.clock),
+                          label: const Text('My timesheet'),
+                          onPress: () => select(sheetContext, AppSection.myTimesheet),
+                        ),
+                      if (session.userType == 'Admin')
+                        FSidebarItem(
+                          icon: const Icon(FLucideIcons.code),
+                          label: const Text('Pay rates'),
+                          onPress: () => select(sheetContext, AppSection.payRates),
+                        ),
                     ],
                   ),
                   FSidebarGroup(
                     label: const Text('Widgets'),
                     children: [
-                      FSidebarItem(
-                        icon: const Icon(FLucideIcons.circleSlash),
-                        label: const Text('Post a job'),
-                        onPress: () => select(sheetContext, AppSection.dashboard),
-                      ),
+                      if (session.userType == 'Admin')
+                        FSidebarItem(
+                          icon: const Icon(FLucideIcons.circleSlash),
+                          label: const Text('Post a job'),
+                          onPress: () => select(sheetContext, AppSection.dashboard),
+                        ),
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.scaling),
-                        label: const Text('Organizations'),
-                        onPress: () => select(sheetContext, AppSection.organizations),
+                        label: const Text('Organization profile'),
+                        onPress: () => select(sheetContext, AppSection.organizationProfile),
                       ),
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.layoutDashboard),
@@ -227,4 +238,73 @@ class Header extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A bell icon with an unread-count badge, opening [NotificationsPage] on
+/// tap. Employee-only — notifications are always about a job someone is on.
+class _NotificationBell extends StatefulWidget {
+  final AuthResult session;
+  const _NotificationBell({required this.session});
+
+  @override
+  State<_NotificationBell> createState() => _NotificationBellState();
+}
+
+class _NotificationBellState extends State<_NotificationBell> {
+  late Future<List<AppNotification>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    _future = ApiClient.getMyNotifications(token: widget.session.token, employeeId: widget.session.userId);
+  }
+
+  Future<void> _open() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => NotificationsPage(session: widget.session)),
+    );
+    if (mounted) setState(_load);
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<AppNotification>>(
+    future: _future,
+    builder: (context, snapshot) {
+      final unread = (snapshot.data ?? const []).where((n) => !n.read).length;
+      return GestureDetector(
+        onTap: _open,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(FLucideIcons.bell),
+              if (unread > 0)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                    decoration: BoxDecoration(
+                      color: context.theme.colors.destructive,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      unread > 9 ? '9+' : '$unread',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

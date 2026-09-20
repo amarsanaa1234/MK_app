@@ -17,49 +17,99 @@ class _JobDraft {
 
 final _draft = _JobDraft();
 
-/// Доороос гарч ирэх "шинэ ажлын зар нэмэх" sheet-ийг нээнэ.
-void openNewPostSheet(BuildContext context, AuthResult session) {
-  showFSheet(
+/// Доороос гарч ирэх "шинэ ажлын зар нэмэх" sheet-ийг нээнэ. [existingJob]
+/// өгвөл шинэ зар үүсгэхийн оронд тухайн зарыг засварлана. Sheet хаагдахад
+/// (draft хадгалсан ч, publish/save хийсэн ч) дуусах Future-ийг буцаана,
+/// ингэснээр дуудагч тал (жишээ нь dashboard) жагсаалтаа шинэчилж болно.
+Future<void> openNewPostSheet(BuildContext context, AuthResult session, {JobAdSummary? existingJob}) {
+  return showFSheet(
     context: context,
     side: .btt,
     // Дэлгэцийн 90%-ийг эзэлнэ.
     mainAxisMaxRatio: 0.9,
-    builder: (context) => NewPostSheet(session: session),
+    builder: (context) => NewPostSheet(session: session, existingJob: existingJob),
   );
 }
 
 class NewPostSheet extends StatefulWidget {
   final AuthResult session;
-  const NewPostSheet({required this.session, super.key});
+  final JobAdSummary? existingJob;
+  const NewPostSheet({required this.session, this.existingJob, super.key});
 
   @override
   State<NewPostSheet> createState() => _NewPostSheetState();
 }
 
 class _NewPostSheetState extends State<NewPostSheet> {
+  bool get _editing => widget.existingJob != null;
+
   late final _addressController = TextEditingController(
-    text: _draft.address ?? '21 Crown St, Wollongong NSW',
+    text: widget.existingJob?.addressLine ?? _draft.address ?? '',
   );
   late final _truckController = TextEditingController(
-    text: _draft.truck ?? 'Truck 04 · 4T Pantech',
+    text: widget.existingJob?.truck ?? _draft.truck ?? 'Truck 04 · 4T Pantech',
   );
-  late final _notesController = TextEditingController(text: _draft.notes ?? '');
+  late final _notesController = TextEditingController(
+    text: widget.existingJob?.notes ?? _draft.notes ?? '',
+  );
 
-  late DateTime _date = _draft.date ?? DateTime.now();
-  late FTime _startTime = _draft.startTime ?? const FTime(9, 0);
-  late String _jobType = _draft.jobType ?? 'Office';
+  late DateTime _date = widget.existingJob?.workDate ?? _draft.date ?? DateTime.now();
+  late FTime _startTime = _parseStartTime(widget.existingJob?.startTime) ?? _draft.startTime ?? const FTime(9, 0);
+  late String _jobType = (widget.existingJob?.jobType != null && _jobTypes.contains(widget.existingJob!.jobType))
+      ? widget.existingJob!.jobType!
+      : (_draft.jobType ?? 'Office');
   Employee? _leader;
   Set<Employee> _crew = {};
   bool _submitting = false;
 
+  // Edit mode-д зориулсан анхны сонголтууд — шинэ зар үүсгэх үеийн `_draft`
+  // singleton-той холилдохгүй байхын тулд тусад нь хадгална.
+  late final String? _initialLeaderId = widget.existingJob?.leader?.id;
+  late final List<String> _initialCrewIds =
+      widget.existingJob?.crew.map((e) => e.id).toList() ?? const [];
+
   static const _jobTypes = ['Residential', 'Office', 'Piano & specialty', 'Interstate'];
 
   late final Future<List<Employee>> _employeesFuture;
+  late Future<Set<String>> _busyEmployeeIdsFuture;
+
+  static FTime? _parseStartTime(String? raw) {
+    if (raw == null) return null;
+    final parts = raw.split(':');
+    if (parts.length < 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    return FTime(hour, minute);
+  }
 
   @override
   void initState() {
     super.initState();
     _employeesFuture = ApiClient.getEmployeeList(widget.session.token);
+    _busyEmployeeIdsFuture = _loadBusyEmployeeIds(_date);
+  }
+
+  /// Everyone already leading or crewing another job on [date] — so the same
+  /// person can't accidentally be double-booked across two posts for one day.
+  /// Excludes this job's own assignments when editing, since those aren't a
+  /// conflict with themselves.
+  Future<Set<String>> _loadBusyEmployeeIds(DateTime date) async {
+    final jobs = await ApiClient.getJobAds(
+      token: widget.session.token,
+      adminId: widget.session.userId,
+      from: date,
+      to: date,
+    );
+    final busy = <String>{};
+    for (final job in jobs) {
+      if (_editing && job.id == widget.existingJob!.id) continue;
+      if (job.leader != null) busy.add(job.leader!.id);
+      for (final crewMember in job.crew) {
+        busy.add(crewMember.id);
+      }
+    }
+    return busy;
   }
 
   @override
@@ -70,9 +120,10 @@ class _NewPostSheetState extends State<NewPostSheet> {
     super.dispose();
   }
 
-  /// "Save as draft" backend рүү огт хадгалахгүй — одоогийн бөглөсөн бүх
-  /// талбарыг (сонгосон lead/crew-ийн хамт) локал `_draft`-д хадгалаад
-  /// sheet-ийг хаана. Дараагийн удаа "New job" нээхэд эргээд сэргээгдэнэ.
+  /// New-job flow-д зориулсан "Save as draft": backend рүү огт хадгалахгүй —
+  /// одоогийн бөглөсөн бүх талбарыг (сонгосон lead/crew-ийн хамт) локал
+  /// `_draft`-д хадгалаад sheet-ийг хаана. Дараагийн удаа "New job" нээхэд
+  /// эргээд сэргээгдэнэ.
   void _saveDraftLocally() {
     _draft
       ..date = _date
@@ -89,42 +140,72 @@ class _NewPostSheetState extends State<NewPostSheet> {
     messenger.showSnackBar(const SnackBar(content: Text('Saved as draft')));
   }
 
-  Future<void> _publish() async {
+  /// Edit-job flow-д зориулсан "Save as draft": байгаа ажлын зарыг DRAFT
+  /// төлөвтэйгээр шууд backend рүү хадгална (local stash биш, учир нь энд
+  /// засварлаж буй зар аль хэдийн үнэхээр оршдог).
+  Future<void> _submit({required bool draft}) async {
     if (_addressController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Site address is required')));
       return;
     }
+    if (_leader == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('A lead is required')));
+      return;
+    }
 
     setState(() => _submitting = true);
     try {
-      await ApiClient.createJobAd(
-        token: widget.session.token,
-        workDate: _date,
-        startHour: _startTime.hour,
-        startMinute: _startTime.minute,
-        addressLine: _addressController.text.trim(),
-        jobType: _jobType,
-        leaderId: _leader?.id,
-        truck: _truckController.text.trim(),
-        crewIds: _crew.map((e) => e.id).toList(),
-        notes: _notesController.text.trim(),
-      );
-      // Амжилттай publish хийгдсэн тул хадгалагдсан drafts-ыг цэвэрлэнэ.
-      _draft
-        ..date = null
-        ..startTime = null
-        ..address = null
-        ..jobType = null
-        ..truck = null
-        ..notes = null
-        ..leaderId = null
-        ..crewIds = [];
+      if (_editing) {
+        await ApiClient.updateJobAd(
+          token: widget.session.token,
+          adminId: widget.session.userId,
+          jobAdId: widget.existingJob!.id,
+          workDate: _date,
+          startHour: _startTime.hour,
+          startMinute: _startTime.minute,
+          addressLine: _addressController.text.trim(),
+          jobType: _jobType,
+          leaderId: _leader?.id,
+          truck: _truckController.text.trim(),
+          crewIds: _crew.map((e) => e.id).toList(),
+          notes: _notesController.text.trim(),
+          draft: draft,
+        );
+      } else {
+        await ApiClient.createJobAd(
+          token: widget.session.token,
+          workDate: _date,
+          startHour: _startTime.hour,
+          startMinute: _startTime.minute,
+          addressLine: _addressController.text.trim(),
+          jobType: _jobType,
+          leaderId: _leader?.id,
+          truck: _truckController.text.trim(),
+          crewIds: _crew.map((e) => e.id).toList(),
+          notes: _notesController.text.trim(),
+          draft: draft,
+        );
+        // Амжилттай publish хийгдсэн тул хадгалагдсан drafts-ыг цэвэрлэнэ.
+        _draft
+          ..date = null
+          ..startTime = null
+          ..address = null
+          ..jobType = null
+          ..truck = null
+          ..notes = null
+          ..leaderId = null
+          ..crewIds = [];
+      }
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
-      Navigator.of(context).pop();
-      messenger.showSnackBar(const SnackBar(content: Text('Published to crew')));
+      Navigator.of(context).pop(true);
+      messenger.showSnackBar(SnackBar(
+        content: Text(_editing ? 'Job updated' : (draft ? 'Saved as draft' : 'Published to crew')),
+      ));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -176,7 +257,10 @@ class _NewPostSheetState extends State<NewPostSheet> {
                     ),
                   ),
                   const Spacer(),
-                  Text('New job', style: typography.body.sm.copyWith(color: colors.mutedForeground)),
+                  Text(
+                    _editing ? 'Edit job' : 'New job',
+                    style: typography.body.sm.copyWith(color: colors.mutedForeground),
+                  ),
                 ],
               ),
             ),
@@ -189,7 +273,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'New job',
+                      _editing ? 'Edit job' : 'New job',
                       style: typography.display.xl2.copyWith(
                         color: colors.foreground,
                         fontWeight: FontWeight.w800,
@@ -197,7 +281,9 @@ class _NewPostSheetState extends State<NewPostSheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Publishing notifies every crew member added below',
+                      _editing
+                          ? 'Changes are visible to every crew member on this job'
+                          : 'Publishing notifies every crew member added below',
                       style: typography.body.sm.copyWith(color: colors.mutedForeground),
                     ),
                     const SizedBox(height: 20),
@@ -211,7 +297,10 @@ class _NewPostSheetState extends State<NewPostSheet> {
                             selectionControl: FDateSelectionControl.managedSingle(
                               initial: _date,
                               toggleable: false,
-                              onChange: (date) => setState(() => _date = date ?? _date),
+                              onChange: (date) => setState(() {
+                                _date = date ?? _date;
+                                _busyEmployeeIdsFuture = _loadBusyEmployeeIds(_date);
+                              }),
                             ),
                           ),
                         ),
@@ -262,11 +351,14 @@ class _NewPostSheetState extends State<NewPostSheet> {
                                 if (snapshot.connectionState != ConnectionState.done) {
                                   return const SizedBox(height: 44);
                                 }
-                                // Эхний удаад л draft-аас сэргээнэ (FSelect-ийн
-                                // `initial` зөвхөн үүсэх мөчид л уншигддаг).
-                                if (_leader == null && _draft.leaderId != null) {
+                                // Эхний удаад л сэргээнэ (FSelect-ийн `initial`
+                                // зөвхөн үүсэх мөчид л уншигддаг) — edit mode
+                                // дээр байгаа ажлын ахлагчаас, эсвэл шинэ зар
+                                // дээр хадгалагдсан draft-аас.
+                                final leaderId = _editing ? _initialLeaderId : _draft.leaderId;
+                                if (_leader == null && leaderId != null) {
                                   for (final e in snapshot.data ?? const []) {
-                                    if (e.id == _draft.leaderId) {
+                                    if (e.id == leaderId) {
                                       _leader = e;
                                       break;
                                     }
@@ -277,13 +369,26 @@ class _NewPostSheetState extends State<NewPostSheet> {
                                   format: (e) => e.fullName,
                                   control: FSelectControl<Employee>.managed(
                                     initial: _leader,
-                                    onChange: (e) => setState(() => _leader = e),
+                                    onChange: (e) => setState(() {
+                                      _leader = e;
+                                      // Lead-ээр сонгосон хүнийг crew-с автоматаар хасна —
+                                      // нэг хүн хоёр дүрд зэрэг байж болохгүй.
+                                      if (e != null) {
+                                        _crew = _crew.where((c) => c.id != e.id).toSet();
+                                      }
+                                    }),
                                   ),
                                   filter: (query) async {
                                     final employees = await _employeesFuture;
+                                    final busy = await _busyEmployeeIdsFuture;
+                                    // Hide anyone already leading/crewing another job the same
+                                    // day — but never hide whoever is currently picked here.
+                                    final available = employees.where(
+                                      (e) => !busy.contains(e.id) || e.id == _leader?.id,
+                                    );
                                     return query.isEmpty
-                                        ? employees
-                                        : employees.where(
+                                        ? available
+                                        : available.where(
                                             (e) => e.fullName.toLowerCase().contains(
                                               query.toLowerCase(),
                                             ),
@@ -337,11 +442,14 @@ class _NewPostSheetState extends State<NewPostSheet> {
                               if (snapshot.connectionState != ConnectionState.done) {
                                 return const SizedBox(height: 24, width: 120);
                               }
-                              // Эхний удаад л draft-аас сэргээнэ (FMultiSelect-ийн
-                              // `initial` зөвхөн үүсэх мөчид л уншигддаг).
-                              if (_crew.isEmpty && _draft.crewIds.isNotEmpty) {
+                              // Эхний удаад л сэргээнэ (FMultiSelect-ийн `initial`
+                              // зөвхөн үүсэх мөчид л уншигддаг) — edit mode дээр
+                              // байгаа багаас, эсвэл шинэ зар дээр хадгалагдсан
+                              // draft-аас.
+                              final crewIds = _editing ? _initialCrewIds : _draft.crewIds;
+                              if (_crew.isEmpty && crewIds.isNotEmpty) {
                                 _crew = (snapshot.data ?? const [])
-                                    .where((e) => _draft.crewIds.contains(e.id))
+                                    .where((e) => crewIds.contains(e.id))
                                     .toSet();
                               }
                               return FMultiSelect<Employee>.searchBuilder(
@@ -353,9 +461,18 @@ class _NewPostSheetState extends State<NewPostSheet> {
                                 ),
                                 filter: (query) async {
                                   final employees = await _employeesFuture;
+                                  final busy = await _busyEmployeeIdsFuture;
+                                  // Lead-ээр сонгогдсон хүн, мөн тухайн өдөр өөр ажлын зард
+                                  // аль хэдийн орсон хүмүүсийг сонголтоос хасна (өөрөө сонгосон
+                                  // crew гишүүдийг үл хамаарна).
+                                  final selectable = employees.where(
+                                    (e) =>
+                                        e.id != _leader?.id &&
+                                        (!busy.contains(e.id) || _crew.any((c) => c.id == e.id)),
+                                  );
                                   return query.isEmpty
-                                      ? employees
-                                      : employees.where(
+                                      ? selectable
+                                      : selectable.where(
                                           (e) => e.fullName.toLowerCase().contains(
                                             query.toLowerCase(),
                                           ),
@@ -391,19 +508,17 @@ class _NewPostSheetState extends State<NewPostSheet> {
                 children: [
                   FButton(
                     variant: .ghost,
-                    onPress: _submitting ? null : _saveDraftLocally,
+                    onPress: _submitting
+                        ? null
+                        : (_editing ? () => _submit(draft: true) : _saveDraftLocally),
                     child: const Text('Save as draft'),
                   ),
                   const SizedBox(width: 8),
                   FButton(
-                    onPress: _submitting ? null : _publish,
+                    onPress: _submitting ? null : () => _submit(draft: false),
                     child: _submitting
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Publish to crew'),
+                        ? const FCircularProgress(size: .xs)
+                        : Text(_editing ? 'Save changes' : 'Publish to crew'),
                   ),
                 ],
               ),
@@ -437,6 +552,15 @@ class _FieldLabel extends StatelessWidget {
     ],
   );
 }
+
+/// Compact labels for the segmented control — the full descriptive string
+/// (e.g. "Piano & specialty") is still what gets stored as the job type.
+const _jobTypeShortLabels = {
+  'Residential': 'Res.',
+  'Office': 'Office',
+  'Piano & specialty': 'Piano',
+  'Interstate': 'Inter.',
+};
 
 /// "Job type" сегментчилсэн сонголт.
 class _JobTypeSelector extends StatelessWidget {
@@ -472,7 +596,7 @@ class _JobTypeSelector extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    option,
+                    _jobTypeShortLabels[option] ?? option,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     style: typography.body.xs.copyWith(

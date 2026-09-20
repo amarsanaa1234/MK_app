@@ -53,7 +53,28 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
   void initState() {
     super.initState();
     _orgIdController.addListener(_onOrgIdChanged);
+    for (final controller in [
+      _fullNameController,
+      _emailController,
+      _phoneController,
+      _passwordController,
+      _addressController,
+      _abnController,
+    ]) {
+      controller.addListener(_onFieldChanged);
+    }
   }
+
+  void _onFieldChanged() => setState(() {});
+
+  bool get _canSubmit =>
+      _workspace != null &&
+      _fullNameController.text.trim().isNotEmpty &&
+      _emailController.text.trim().isNotEmpty &&
+      _phoneController.text.trim().isNotEmpty &&
+      _passwordController.text.trim().isNotEmpty &&
+      _addressController.text.trim().isNotEmpty &&
+      _abnController.text.trim().isNotEmpty;
 
   @override
   void dispose() {
@@ -86,10 +107,6 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
   }
 
   Future<void> _submit() async {
-    if (_workspace == null) {
-      setState(() => _error = 'Байгууллагын ID зөв эсэхийг шалгана уу');
-      return;
-    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -232,11 +249,7 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                           suffixBuilder: (context, style, _) => _lookingUp
                               ? const Padding(
                                   padding: EdgeInsets.all(10),
-                                  child: SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  ),
+                                  child: FCircularProgress(size: .xs),
                                 )
                               : const SizedBox.shrink(),
                         ),
@@ -279,13 +292,9 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                         ],
                         const SizedBox(height: 24),
                         FButton(
-                          onPress: _submitting ? null : _submit,
+                          onPress: (_submitting || !_canSubmit) ? null : _submit,
                           child: _submitting
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
+                              ? const FCircularProgress(size: .sm)
                               : const Text('Create account'),
                         ),
                         const SizedBox(height: 12),
