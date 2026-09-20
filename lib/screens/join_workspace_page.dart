@@ -6,7 +6,9 @@ import 'package:forui/forui.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../api/api_client.dart';
+import '../widgets/copy_text.dart';
 import 'home_page.dart';
+import 'orgScreen/billing/plan_parts.dart';
 import 'login_page.dart';
 
 class JoinWorkspacePage extends StatefulWidget {
@@ -67,8 +69,33 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
 
   void _onFieldChanged() => setState(() {});
 
+  bool _copiedMessage = false;
+
+  bool get _workspaceFull => _workspace?.full ?? false;
+
+  /// A ready-made note the new hire can send their admin when the workspace is full.
+  String get _adminMessage =>
+      'Hi! I am trying to join ${_workspace?.businessName ?? 'our workspace'} on MK Roster, but the workspace '
+      'has reached its ${_workspace?.maxPeople ?? 0}-person limit. Could you upgrade the plan or free up a spot? '
+      'Organization ID: ${_orgIdController.text.trim().toUpperCase()}';
+
+  Future<void> _copyAdminMessage() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await copyToClipboard(_adminMessage);
+    if (!mounted) return;
+    if (!ok) {
+      messenger.showSnackBar(const SnackBar(content: Text("Couldn't copy the message")));
+      return;
+    }
+    setState(() => _copiedMessage = true);
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copiedMessage = false);
+    });
+  }
+
   bool get _canSubmit =>
       _workspace != null &&
+      !_workspaceFull &&
       _fullNameController.text.trim().isNotEmpty &&
       _emailController.text.trim().isNotEmpty &&
       _phoneController.text.trim().isNotEmpty &&
@@ -279,6 +306,26 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                             ),
                           ),
                         ],
+                        if (_workspaceFull) ...[
+                          const SizedBox(height: 12),
+                          NoticeBox(
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  const TextSpan(
+                                    text: 'This workspace is full. ',
+                                    style: TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                  TextSpan(
+                                    text:
+                                        '${_workspace!.businessName} has reached its ${_workspace!.maxPeople}-person '
+                                        'limit. Ask your admin to upgrade, then try again.',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                         if (_error != null) ...[
                           const SizedBox(height: 16),
                           Container(
@@ -297,6 +344,14 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                               ? const FCircularProgress(size: .sm)
                               : const Text('Create account'),
                         ),
+                        if (_workspaceFull) ...[
+                          const SizedBox(height: 10),
+                          FButton(
+                            variant: .outline,
+                            onPress: _copyAdminMessage,
+                            child: Text(_copiedMessage ? 'Message copied' : 'Copy a message for your admin'),
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         Center(
                           child: FButton(

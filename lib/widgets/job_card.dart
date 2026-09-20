@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:mk_app/api/api_client.dart';
 import 'app_dialog.dart';
+import 'copy_text.dart';
 import 'user_avatar.dart';
 
 const jobStatusLabels = {
@@ -33,6 +34,7 @@ class JobCard extends StatelessWidget {
   final List<Employee> avatarPeople;
   final Widget? avatarLabel;
   final String? notes;
+  final String? inductionUrl;
   final Employee? leader;
   final List<Employee> crew;
   final VoidCallback? onEdit;
@@ -46,6 +48,7 @@ class JobCard extends StatelessWidget {
     this.avatarPeople = const [],
     this.avatarLabel,
     this.notes,
+    this.inductionUrl,
     this.leader,
     this.crew = const [],
     this.onEdit,
@@ -60,11 +63,32 @@ class JobCard extends StatelessWidget {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  bool get _hasNotes => notes != null && notes!.trim().isNotEmpty;
+  bool get _hasInductionUrl => inductionUrl != null && inductionUrl!.trim().isNotEmpty;
+
+  Future<void> _openInduction(BuildContext context) async {
+    var raw = inductionUrl!.trim();
+    if (!raw.contains('://')) raw = 'https://$raw';
+    final uri = Uri.tryParse(raw);
+    final opened = uri != null && await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't open the induction link")));
+    }
+  }
+
   void _showNotes(BuildContext context) {
     showFAppDialog<void>(
       context: context,
       title: 'Notes',
-      bodyText: notes ?? '',
+      bodyText: _hasNotes ? notes!.trim() : null,
+      body: _hasInductionUrl
+          ? FButton(
+              variant: .outline,
+              onPress: () => _openInduction(context),
+              prefix: const Icon(FLucideIcons.externalLink),
+              child: const Text('Induction URL'),
+            )
+          : null,
       actions: [
         FButton(
           variant: .ghost,
@@ -102,7 +126,9 @@ class JobCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = context.theme.cardStyle;
     final colors = context.theme.colors;
-    final hasNotes = notes != null && notes!.trim().isNotEmpty;
+    // The notes button opens both the notes and the induction link, so it's
+    // shown when either exists and hidden when there's neither.
+    final hasNotes = _hasNotes || _hasInductionUrl;
 
     return FCard(
       style: style,
@@ -234,8 +260,21 @@ class _CrewRow extends StatelessWidget {
           UserAvatar(fullName: person.fullName, photoUrl: person.photoUrl, size: 32),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(person.fullName, style: TextStyle(color: colors.foreground)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(person.fullName, style: TextStyle(color: colors.foreground)),
+                if (person.phone != null && person.phone!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  CopyableText(
+                    text: person.phone!.trim(),
+                    style: TextStyle(fontSize: 12, color: colors.mutedForeground),
+                  ),
+                ],
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(

@@ -35,16 +35,19 @@ Future<T?> showFAppDialog<T>({
                 Text(bodyText, style: dialogStyle.bodyTextStyle),
               ],
               if (body != null) ...[const SizedBox(height: 12), body],
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  for (var i = 0; i < actions.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    actions[i],
+              // A body that carries its own buttons passes no actions.
+              if (actions.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      actions[i],
+                    ],
                   ],
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ),

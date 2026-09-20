@@ -148,7 +148,7 @@ class Header extends StatelessWidget {
                           onPress: () => select(sheetContext, AppSection.gettingStarted),
                           children: [
                             FSidebarItem(
-                              label: const Text('Empoyees'),
+                              label: const Text('Employees'),
                               onPress: () => select(sheetContext, AppSection.employees),
                             ),
                             FSidebarItem(
@@ -177,6 +177,12 @@ class Header extends StatelessWidget {
                           icon: const Icon(FLucideIcons.code),
                           label: const Text('Pay rates'),
                           onPress: () => select(sheetContext, AppSection.payRates),
+                        ),
+                      if (session.userType == 'Admin')
+                        FSidebarItem(
+                          icon: const Icon(FLucideIcons.creditCard),
+                          label: const Text('Plan & billing'),
+                          onPress: () => select(sheetContext, AppSection.planBilling),
                         ),
                     ],
                   ),

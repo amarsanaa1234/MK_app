@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:intl/intl.dart';
 import 'package:mk_app/api/api_client.dart';
+import 'package:mk_app/utils/pay_period.dart';
 import 'package:mk_app/widgets/app_dialog.dart';
 
 /// An employee's own logged hours over a rolling two-week window — date,
@@ -16,13 +17,8 @@ class MyTimesheetPage extends StatefulWidget {
 }
 
 class _MyTimesheetPageState extends State<MyTimesheetPage> {
-  static const _windowDays = 14;
-
-  int _weekOffset = 0;
+  PayPeriod _period = PayPeriod.current();
   late Future<List<WorkHourEntrySummary>> _future;
-
-  DateTime get _to => DateTime.now().subtract(Duration(days: _windowDays * _weekOffset));
-  DateTime get _from => _to.subtract(const Duration(days: _windowDays - 1));
 
   @override
   void initState() {
@@ -31,20 +27,17 @@ class _MyTimesheetPageState extends State<MyTimesheetPage> {
   }
 
   void _load() {
-    final from = DateTime(_from.year, _from.month, _from.day);
-    final to = DateTime(_to.year, _to.month, _to.day);
     _future = ApiClient.getMyWorkHours(
       token: widget.session.token,
       employeeId: widget.session.userId,
-      from: from,
-      to: to,
+      from: _period.start,
+      to: _period.end,
     );
   }
 
-  void _shiftWindow(int delta) {
+  void _shiftPeriod(PayPeriod period) {
     setState(() {
-      _weekOffset += delta;
-      if (_weekOffset < 0) _weekOffset = 0;
+      _period = period;
       _load();
     });
   }
@@ -96,18 +89,18 @@ class _MyTimesheetPageState extends State<MyTimesheetPage> {
               Row(
                 children: [
                   IconButton(
-                    onPressed: () => _shiftWindow(1),
+                    onPressed: () => _shiftPeriod(_period.previous),
                     icon: const Icon(Icons.chevron_left),
                   ),
                   Expanded(
                     child: Text(
-                      '${DateFormat('d MMM').format(_from)} – ${DateFormat('d MMM').format(_to)}',
+                      _period.label,
                       textAlign: TextAlign.center,
                       style: typography.body.sm.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   IconButton(
-                    onPressed: _weekOffset == 0 ? null : () => _shiftWindow(-1),
+                    onPressed: _period.isCurrent ? null : () => _shiftPeriod(_period.next),
                     icon: const Icon(Icons.chevron_right),
                   ),
                 ],

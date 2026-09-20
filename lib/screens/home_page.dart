@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:mk_app/screens/employeeScreen/employee_home_feed.dart';
 import 'package:mk_app/screens/employeeScreen/my_timesheet_page.dart';
 import 'package:mk_app/screens/header/header.dart';
+import 'package:mk_app/screens/orgScreen/billing/plan_billing_page.dart';
+import 'package:mk_app/screens/orgScreen/employees/employees_page.dart';
 import 'package:mk_app/screens/orgScreen/org_home_page/org_home_page.dart';
 import 'package:mk_app/screens/orgScreen/org_profile/org_profile.dart';
 import 'package:mk_app/screens/orgScreen/payroll/pay_rates_page.dart';
@@ -18,6 +20,7 @@ enum AppSection {
   myRoster,
   myTimesheet,
   payRates,
+  planBilling,
   gettingStarted,
   employees,
   payroll,
@@ -47,12 +50,13 @@ class _HomePageState extends State<HomePage> {
     AppSection.profile => UserProfilePage(session: widget.session),
     AppSection.organizationProfile => OrgProfile(session: widget.session),
     AppSection.payRates => PayRatesPage(session: widget.session),
+    AppSection.planBilling => PlanBillingPage(session: widget.session),
     AppSection.payroll => PayrollCalculatorPage(session: widget.session),
     AppSection.timesheets => TimesheetsPage(session: widget.session),
     AppSection.myTimesheet => MyTimesheetPage(session: widget.session),
     AppSection.myRoster => const _ComingSoon(title: 'My roster'),
     AppSection.gettingStarted => const _ComingSoon(title: 'Getting Started'),
-    AppSection.employees => const _ComingSoon(title: 'Employees'),
+    AppSection.employees => EmployeesPage(session: widget.session),
   };
 
   @override

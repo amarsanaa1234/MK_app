@@ -11,6 +11,7 @@ class UserAvatar extends StatelessWidget {
   final double size;
   final Color? color;
   final Color? borderColor;
+  final Color textColor;
 
   const UserAvatar({
     required this.fullName,
@@ -18,6 +19,7 @@ class UserAvatar extends StatelessWidget {
     this.size = 24,
     this.color,
     this.borderColor,
+    this.textColor = Colors.white,
     super.key,
   });
 
@@ -63,7 +65,7 @@ class UserAvatar extends StatelessWidget {
               style: TextStyle(
                 fontSize: size * 0.4,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: textColor,
               ),
             ),
     );
@@ -101,7 +103,7 @@ class AvatarGroup extends StatelessWidget {
                   fullName: people[i].fullName,
                   photoUrl: people[i].photoUrl,
                   size: size,
-                  borderColor: const Color(0xFF181C22),
+                  borderColor: const Color(0xFF222A31),
                 ),
               ),
           ],

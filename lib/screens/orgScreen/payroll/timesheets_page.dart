@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
-import 'package:intl/intl.dart';
 import 'package:mk_app/api/api_client.dart';
+import 'package:mk_app/utils/pay_period.dart';
 import 'package:mk_app/widgets/user_avatar.dart';
 
 /// Admin-only: each crew member's hours logged vs. missing (vs. genuinely off)
@@ -15,14 +15,9 @@ class TimesheetsPage extends StatefulWidget {
 }
 
 class _TimesheetsPageState extends State<TimesheetsPage> {
-  static const _windowDays = 14;
-
-  int _weekOffset = 0;
+  PayPeriod _period = PayPeriod.current();
   bool _missingOnly = false;
   late Future<List<TimesheetSummary>> _future;
-
-  DateTime get _to => DateTime.now().subtract(Duration(days: _windowDays * _weekOffset));
-  DateTime get _from => _to.subtract(const Duration(days: _windowDays - 1));
 
   @override
   void initState() {
@@ -34,15 +29,14 @@ class _TimesheetsPageState extends State<TimesheetsPage> {
     _future = ApiClient.getTimesheets(
       token: widget.session.token,
       adminId: widget.session.userId,
-      from: DateTime(_from.year, _from.month, _from.day),
-      to: DateTime(_to.year, _to.month, _to.day),
+      from: _period.start,
+      to: _period.end,
     );
   }
 
-  void _shiftWindow(int delta) {
+  void _shiftPeriod(PayPeriod period) {
     setState(() {
-      _weekOffset += delta;
-      if (_weekOffset < 0) _weekOffset = 0;
+      _period = period;
       _load();
     });
   }
@@ -70,17 +64,17 @@ class _TimesheetsPageState extends State<TimesheetsPage> {
                 ),
                 child: Row(
                   children: [
-                    _RoundIconButton(icon: Icons.chevron_left, onPressed: () => _shiftWindow(1)),
+                    _RoundIconButton(icon: Icons.chevron_left, onPressed: () => _shiftPeriod(_period.previous)),
                     Expanded(
                       child: Text(
-                        '${DateFormat('d MMM').format(_from)} – ${DateFormat('d MMM').format(_to)}',
+                        _period.label,
                         textAlign: TextAlign.center,
                         style: typography.body.sm.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                     _RoundIconButton(
                       icon: Icons.chevron_right,
-                      onPressed: _weekOffset == 0 ? null : () => _shiftWindow(-1),
+                      onPressed: _period.isCurrent ? null : () => _shiftPeriod(_period.next),
                     ),
                   ],
                 ),
@@ -269,7 +263,8 @@ class _TimesheetRow extends StatelessWidget {
 }
 
 /// A single day in a [_TimesheetRow]'s calendar strip — green for worked,
-/// red for missing a log, faint gray for a day the employee wasn't rostered.
+/// red for missing a log, a hollow ring for a job still to come, and faint
+/// gray for a day the employee wasn't rostered at all.
 class _DayDot extends StatelessWidget {
   final String status;
   const _DayDot({required this.status});
@@ -277,6 +272,16 @@ class _DayDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
+    if (status == 'UPCOMING') {
+      return Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: colors.primary, width: 1.5),
+        ),
+      );
+    }
     final color = switch (status) {
       'WORKED' => const Color(0xFF3FB27F),
       'MISSING' => colors.destructive,

@@ -3,6 +3,8 @@ import 'package:forui/forui.dart';
 import 'package:intl/intl.dart';
 import 'package:mk_app/api/api_client.dart';
 import 'package:mk_app/screens/landing_page.dart';
+import 'package:mk_app/utils/pay_period.dart';
+import 'package:mk_app/widgets/employee_overview_view.dart';
 import 'package:mk_app/widgets/user_avatar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -95,6 +97,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Crew see the same hours-and-pay view an admin gets of them; admins have no hours,
+    // so they keep the plain profile below.
+    if (widget.session.userType != 'Admin') {
+      return _EmployeeProfile(
+        session: widget.session,
+        onEdit: () => _editComingSoon(context),
+        onLogout: () => _logout(context),
+      );
+    }
+
     final colors = context.theme.colors;
     final typography = context.theme.typography;
     return Align(
@@ -188,6 +200,91 @@ class _UserProfilePageState extends State<UserProfilePage> {
           },
         ),
       ),
+    );
+  }
+}
+
+/// An employee's own profile: this pay period's hours, pay, days worked and shifts, with the
+/// account actions underneath.
+class _EmployeeProfile extends StatefulWidget {
+  final AuthResult session;
+  final VoidCallback onEdit;
+  final VoidCallback onLogout;
+  const _EmployeeProfile({required this.session, required this.onEdit, required this.onLogout});
+
+  @override
+  State<_EmployeeProfile> createState() => _EmployeeProfileState();
+}
+
+class _EmployeeProfileState extends State<_EmployeeProfile> {
+  PayPeriod _period = PayPeriod.current();
+  late Future<EmployeeOverview> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _shiftPeriod(PayPeriod period) {
+    setState(() {
+      _period = period;
+      _load();
+    });
+  }
+
+  void _load() {
+    _future = ApiClient.getMyOverview(
+      token: widget.session.token,
+      employeeId: widget.session.userId,
+      from: _period.start,
+      to: _period.end,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.theme.colors;
+    final typography = context.theme.typography;
+
+    return FutureBuilder<EmployeeOverview>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: FCircularProgress());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    snapshot.error.toString(),
+                    textAlign: TextAlign.center,
+                    style: typography.body.sm.copyWith(color: colors.error),
+                  ),
+                  const SizedBox(height: 8),
+                  FButton(variant: .outline, size: .sm, onPress: () => setState(_load), child: const Text('Retry')),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return EmployeeOverviewView(
+          employee: snapshot.data!,
+          periodLabel: _period.label,
+          onPreviousPeriod: () => _shiftPeriod(_period.previous),
+          onNextPeriod: _period.isCurrent ? null : () => _shiftPeriod(_period.next),
+          footer: [
+            FButton(variant: .outline, onPress: widget.onEdit, child: const Text('Edit profile')),
+            const SizedBox(height: 10),
+            FButton(variant: .destructive, onPress: widget.onLogout, child: const Text('Log out')),
+          ],
+        );
+      },
     );
   }
 }

@@ -183,6 +183,7 @@ class _JobList extends StatelessWidget {
                   addressLine: job.addressLine,
                   descriptionText: descriptionParts.join(' · '),
                   notes: job.notes,
+                  inductionUrl: job.inductionUrl,
                   avatarPeople: others,
                   avatarLabel: others.isEmpty
                       ? null

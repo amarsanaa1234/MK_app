@@ -57,16 +57,91 @@ class WorkspaceInfo {
   final String businessName;
   final String? address;
 
+  /// The workspace is at its plan's people limit, so nobody new can join.
+  final bool full;
+  final int maxPeople;
+
   WorkspaceInfo({
     required this.organizationId,
     required this.businessName,
     this.address,
+    this.full = false,
+    this.maxPeople = 0,
   });
 
   factory WorkspaceInfo.fromJson(Map<String, dynamic> json) => WorkspaceInfo(
     organizationId: json['organizationId'] as String,
     businessName: json['businessName'] as String,
     address: json['address'] as String?,
+    full: json['full'] as bool? ?? false,
+    maxPeople: json['maxPeople'] as int? ?? 0,
+  );
+}
+
+/// A workspace's plan, trial state and usage (Plan & billing screen).
+class PlanInfo {
+  /// FREE, PRO or BUSINESS — the plan actually in force.
+  final String plan;
+  final String interval;
+  final bool onTrial;
+  final DateTime? trialEndsOn;
+  final int trialDaysLeft;
+  final int trialLengthDays;
+  final bool trialUsed;
+
+  /// A paid plan was chosen but its trial ended without a card, so it fell back to Free.
+  final bool lapsed;
+  final int peopleCount;
+  final int maxPeople;
+  final int workspacesUsed;
+  final int maxWorkspaces;
+  final int adminCount;
+  final bool multipleAdmins;
+  final bool paymentMethodAdded;
+  final int monthlyPrice;
+  final int yearlyPrice;
+
+  PlanInfo({
+    required this.plan,
+    required this.interval,
+    required this.onTrial,
+    this.trialEndsOn,
+    required this.trialDaysLeft,
+    required this.trialLengthDays,
+    required this.trialUsed,
+    required this.lapsed,
+    required this.peopleCount,
+    required this.maxPeople,
+    required this.workspacesUsed,
+    required this.maxWorkspaces,
+    required this.adminCount,
+    required this.multipleAdmins,
+    required this.paymentMethodAdded,
+    required this.monthlyPrice,
+    required this.yearlyPrice,
+  });
+
+  bool get isFree => plan == 'FREE';
+  bool get full => peopleCount >= maxPeople;
+
+  factory PlanInfo.fromJson(Map<String, dynamic> json) => PlanInfo(
+    plan: json['plan'] as String,
+    interval: json['interval'] as String? ?? 'MONTHLY',
+    onTrial: json['onTrial'] as bool? ?? false,
+    trialEndsOn: json['trialEndsOn'] == null ? null : DateTime.parse(json['trialEndsOn'] as String),
+    trialDaysLeft: json['trialDaysLeft'] as int? ?? 0,
+    trialLengthDays: json['trialLengthDays'] as int? ?? 30,
+    trialUsed: json['trialUsed'] as bool? ?? false,
+    lapsed: json['lapsed'] as bool? ?? false,
+    peopleCount: (json['peopleCount'] as num).toInt(),
+    maxPeople: json['maxPeople'] as int,
+    workspacesUsed: json['workspacesUsed'] as int? ?? 1,
+    maxWorkspaces: json['maxWorkspaces'] as int? ?? 1,
+    adminCount: (json['adminCount'] as num?)?.toInt() ?? 1,
+    multipleAdmins: json['multipleAdmins'] as bool? ?? false,
+    paymentMethodAdded: json['paymentMethodAdded'] as bool? ?? false,
+    monthlyPrice: json['monthlyPrice'] as int? ?? 0,
+    yearlyPrice: json['yearlyPrice'] as int? ?? 0,
   );
 }
 
@@ -160,8 +235,8 @@ class EmployeeDetail {
   );
 }
 
-/// One day within a [TimesheetSummary]'s range — worked (hours logged), missing
-/// (rostered on a job that day but no hours logged yet), or off (not rostered at all).
+/// One day within a [TimesheetSummary]'s range — WORKED (hours logged), MISSING (a
+/// past job with no hours logged), UPCOMING (a job today or later), or OFF (no job).
 class TimesheetDay {
   final DateTime date;
   final String status;
@@ -205,6 +280,114 @@ class TimesheetSummary {
     days: (json['days'] as List<dynamic>? ?? const [])
         .map((e) => TimesheetDay.fromJson(e as Map<String, dynamic>))
         .toList(),
+  );
+}
+
+/// One job an employee was on in a pay period — WORKED, MISSING (past, no hours
+/// logged) or UPCOMING (today or later).
+class Shift {
+  final DateTime date;
+  final String jobAdId;
+  final String? addressLine;
+  final double? hoursWorked;
+  final String status;
+  final String? jobType;
+
+  /// This person led the job.
+  final bool lead;
+
+  Shift({
+    required this.date,
+    required this.jobAdId,
+    this.addressLine,
+    this.hoursWorked,
+    required this.status,
+    this.jobType,
+    this.lead = false,
+  });
+
+  factory Shift.fromJson(Map<String, dynamic> json) => Shift(
+    date: DateTime.parse(json['date'] as String),
+    jobAdId: json['jobAdId'] as String,
+    addressLine: json['addressLine'] as String?,
+    hoursWorked: (json['hoursWorked'] as num?)?.toDouble(),
+    status: json['status'] as String,
+    jobType: json['jobType'] as String?,
+    lead: json['lead'] as bool? ?? false,
+  );
+}
+
+/// One person in the workspace for the Employees screen, for a single pay period.
+class EmployeeOverview {
+  final String id;
+  final String fullName;
+  final String role;
+  final String? email;
+  final String? phone;
+  final String? photoUrl;
+  final DateTime? joinedAt;
+  final double? payRate;
+  final double totalHours;
+  final int missingLogs;
+  final DateTime? firstMissingDate;
+  final double owed;
+  final bool paid;
+  final bool onSite;
+  final String? onSiteSince;
+  final List<TimesheetDay> days;
+  final List<Shift> shifts;
+
+  /// Short workspace-unique ID such as MK-0004.
+  final String? employeeCode;
+
+  EmployeeOverview({
+    required this.id,
+    required this.fullName,
+    required this.role,
+    this.email,
+    this.phone,
+    this.photoUrl,
+    this.joinedAt,
+    this.payRate,
+    this.totalHours = 0,
+    this.missingLogs = 0,
+    this.firstMissingDate,
+    this.owed = 0,
+    this.paid = false,
+    this.onSite = false,
+    this.onSiteSince,
+    this.days = const [],
+    this.shifts = const [],
+    this.employeeCode,
+  });
+
+  bool get isAdmin => role == 'Admin';
+
+  factory EmployeeOverview.fromJson(Map<String, dynamic> json) => EmployeeOverview(
+    id: json['id'] as String,
+    fullName: json['fullName'] as String? ?? '',
+    role: json['role'] as String? ?? 'Crew',
+    email: json['email'] as String?,
+    phone: json['phone'] as String?,
+    photoUrl: json['photoUrl'] as String?,
+    joinedAt: json['joinedAt'] == null ? null : DateTime.parse(json['joinedAt'] as String),
+    payRate: (json['payRate'] as num?)?.toDouble(),
+    totalHours: (json['totalHours'] as num?)?.toDouble() ?? 0,
+    missingLogs: json['missingLogs'] as int? ?? 0,
+    firstMissingDate: json['firstMissingDate'] == null
+        ? null
+        : DateTime.parse(json['firstMissingDate'] as String),
+    owed: (json['owed'] as num?)?.toDouble() ?? 0,
+    paid: json['paid'] as bool? ?? false,
+    onSite: json['onSite'] as bool? ?? false,
+    onSiteSince: json['onSiteSince'] as String?,
+    days: (json['days'] as List<dynamic>? ?? const [])
+        .map((e) => TimesheetDay.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    shifts: (json['shifts'] as List<dynamic>? ?? const [])
+        .map((e) => Shift.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    employeeCode: json['employeeCode'] as String?,
   );
 }
 
@@ -295,7 +478,7 @@ class JobAdSummary {
   final String id;
   final String title;
   final String? jobType;
-  final String? truck;
+  final String? inductionUrl;
   final String? notes;
   final String status;
   final DateTime workDate;
@@ -310,7 +493,7 @@ class JobAdSummary {
     required this.id,
     required this.title,
     this.jobType,
-    this.truck,
+    this.inductionUrl,
     this.notes,
     required this.status,
     required this.workDate,
@@ -326,7 +509,7 @@ class JobAdSummary {
     id: json['id'] as String,
     title: json['title'] as String? ?? '',
     jobType: json['jobType'] as String?,
-    truck: json['truck'] as String?,
+    inductionUrl: json['inductionUrl'] as String?,
     notes: json['notes'] as String?,
     status: json['status'] as String? ?? 'OPEN',
     workDate: DateTime.parse(json['workDate'] as String),
@@ -486,7 +669,7 @@ class ApiClient {
     required String addressLine,
     required String jobType,
     String? leaderId,
-    String? truck,
+    String? inductionUrl,
     List<String> crewIds = const [],
     String? notes,
     bool draft = false,
@@ -505,7 +688,7 @@ class ApiClient {
         'addressLine': addressLine,
         'jobType': jobType,
         if (leaderId != null) 'leaderId': leaderId,
-        if (truck != null) 'truck': truck,
+        if (inductionUrl != null) 'inductionUrl': inductionUrl,
         'crewIds': crewIds,
         if (notes != null) 'notes': notes,
         'draft': draft,
@@ -528,7 +711,7 @@ class ApiClient {
     required String addressLine,
     required String jobType,
     String? leaderId,
-    String? truck,
+    String? inductionUrl,
     List<String> crewIds = const [],
     String? notes,
     bool draft = false,
@@ -547,7 +730,7 @@ class ApiClient {
         'addressLine': addressLine,
         'jobType': jobType,
         if (leaderId != null) 'leaderId': leaderId,
-        if (truck != null) 'truck': truck,
+        if (inductionUrl != null) 'inductionUrl': inductionUrl,
         'crewIds': crewIds,
         if (notes != null) 'notes': notes,
         'draft': draft,
@@ -667,6 +850,119 @@ class ApiClient {
     }
     final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
     return list.map((e) => TimesheetSummary.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  static String _iso(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Everyone in the workspace (admins and crew) with hours, pay and paid
+  /// status for the pay period [from]..[to] (Employees screen).
+  static Future<List<EmployeeOverview>> getEmployeeOverview({
+    required String token,
+    required String adminId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final uri = Uri.parse('$apiBaseUrl/api/admins/$adminId/employees/overview').replace(
+      queryParameters: {'from': _iso(from), 'to': _iso(to)},
+    );
+    final res = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Ажилчдын жагсаалт татахад алдаа гарлаа');
+    }
+    final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+    return list.map((e) => EmployeeOverview.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// The signed-in employee's own hours, pay and day-by-day breakdown for the pay
+  /// period [from]..[to] (their profile screen).
+  static Future<EmployeeOverview> getMyOverview({
+    required String token,
+    required String employeeId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final uri = Uri.parse('$apiBaseUrl/api/employees/$employeeId/overview').replace(
+      queryParameters: {'from': _iso(from), 'to': _iso(to)},
+    );
+    final res = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+    // A server built before this endpoint existed answers 404 with no message.
+    if (res.statusCode == 404) {
+      throw ApiException('The server is out of date — restart the backend to load your profile.');
+    }
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Профайл татахад алдаа гарлаа');
+    }
+    return EmployeeOverview.fromJson(_decode(res));
+  }
+
+  static Future<PlanInfo> getPlan({required String token, required String adminId}) async {
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/api/admins/$adminId/plan'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Төлөвлөгөөний мэдээлэл татахад алдаа гарлаа');
+    }
+    return PlanInfo.fromJson(_decode(res));
+  }
+
+  /// Switches the workspace to [plan] (FREE, PRO or BUSINESS). A paid plan starts
+  /// the one-off 30-day, no-card trial.
+  static Future<PlanInfo> changePlan({
+    required String token,
+    required String adminId,
+    required String plan,
+    required bool yearly,
+  }) async {
+    final res = await http.put(
+      Uri.parse('$apiBaseUrl/api/admins/$adminId/plan'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'plan': plan, 'interval': yearly ? 'YEARLY' : 'MONTHLY'}),
+    );
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Төлөвлөгөө солиход алдаа гарлаа');
+    }
+    return PlanInfo.fromJson(_decode(res));
+  }
+
+  /// Removes an employee from the workspace. Their past hours and pay history are kept.
+  static Future<void> removeEmployee({
+    required String token,
+    required String adminId,
+    required String employeeId,
+  }) async {
+    final res = await http.delete(
+      Uri.parse('$apiBaseUrl/api/admins/$adminId/employees/$employeeId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 204) {
+      _throwFromError(res, 'Ажилтныг хасахад алдаа гарлаа');
+    }
+  }
+
+  static Future<void> setPeriodPaid({
+    required String token,
+    required String adminId,
+    required String employeeId,
+    required DateTime from,
+    required DateTime to,
+    required bool paid,
+  }) async {
+    final base = '$apiBaseUrl/api/admins/$adminId/employees/$employeeId/paid';
+    final headers = {'Authorization': 'Bearer $token'};
+    final res = paid
+        ? await http.put(
+            Uri.parse(base).replace(queryParameters: {'from': _iso(from), 'to': _iso(to)}),
+            headers: headers,
+          )
+        : await http.delete(
+            Uri.parse(base).replace(queryParameters: {'from': _iso(from)}),
+            headers: headers,
+          );
+    if (res.statusCode != 204) {
+      _throwFromError(res, 'Төлбөрийн төлөв шинэчлэхэд алдаа гарлаа');
+    }
   }
 
   /// Тухайн ажилтны сүүлийн ажилласан цагийн бүртгэлүүд (Payroll calculator-ийн

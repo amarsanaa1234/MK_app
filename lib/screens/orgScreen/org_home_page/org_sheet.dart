@@ -9,7 +9,7 @@ class _JobDraft {
   FTime? startTime;
   String? address;
   String? jobType;
-  String? truck;
+  String? inductionUrl;
   String? notes;
   String? leaderId;
   List<String> crewIds = [];
@@ -46,8 +46,8 @@ class _NewPostSheetState extends State<NewPostSheet> {
   late final _addressController = TextEditingController(
     text: widget.existingJob?.addressLine ?? _draft.address ?? '',
   );
-  late final _truckController = TextEditingController(
-    text: widget.existingJob?.truck ?? _draft.truck ?? 'Truck 04 · 4T Pantech',
+  late final _inductionController = TextEditingController(
+    text: widget.existingJob?.inductionUrl ?? _draft.inductionUrl ?? '',
   );
   late final _notesController = TextEditingController(
     text: widget.existingJob?.notes ?? _draft.notes ?? '',
@@ -68,7 +68,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
   late final List<String> _initialCrewIds =
       widget.existingJob?.crew.map((e) => e.id).toList() ?? const [];
 
-  static const _jobTypes = ['Residential', 'Office', 'Piano & specialty', 'Interstate'];
+  static const _jobTypes = ['Construction', 'House', 'Off-site', 'Government'];
 
   late final Future<List<Employee>> _employeesFuture;
   late Future<Set<String>> _busyEmployeeIdsFuture;
@@ -115,7 +115,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
   @override
   void dispose() {
     _addressController.dispose();
-    _truckController.dispose();
+    _inductionController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -130,7 +130,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
       ..startTime = _startTime
       ..address = _addressController.text
       ..jobType = _jobType
-      ..truck = _truckController.text
+      ..inductionUrl = _inductionController.text
       ..notes = _notesController.text
       ..leaderId = _leader?.id
       ..crewIds = _crew.map((e) => e.id).toList();
@@ -170,7 +170,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
           addressLine: _addressController.text.trim(),
           jobType: _jobType,
           leaderId: _leader?.id,
-          truck: _truckController.text.trim(),
+          inductionUrl: _inductionController.text.trim(),
           crewIds: _crew.map((e) => e.id).toList(),
           notes: _notesController.text.trim(),
           draft: draft,
@@ -184,7 +184,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
           addressLine: _addressController.text.trim(),
           jobType: _jobType,
           leaderId: _leader?.id,
-          truck: _truckController.text.trim(),
+          inductionUrl: _inductionController.text.trim(),
           crewIds: _crew.map((e) => e.id).toList(),
           notes: _notesController.text.trim(),
           draft: draft,
@@ -195,7 +195,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
           ..startTime = null
           ..address = null
           ..jobType = null
-          ..truck = null
+          ..inductionUrl = null
           ..notes = null
           ..leaderId = null
           ..crewIds = [];
@@ -405,9 +405,11 @@ class _NewPostSheetState extends State<NewPostSheet> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _FieldLabel(
-                            label: 'Truck',
+                            label: 'Induction link',
                             child: FTextField(
-                              control: FTextFieldControl.managed(controller: _truckController),
+                              control: FTextFieldControl.managed(controller: _inductionController),
+                              hint: 'https://…',
+                              keyboardType: TextInputType.url,
                             ),
                           ),
                         ),
@@ -530,7 +532,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
   }
 }
 
-/// "Lead"/"Truck" шиг талбарын дээр label тавьдаг жижиг helper.
+/// "Lead"/"Induction link" шиг талбарын дээр label тавьдаг жижиг helper.
 class _FieldLabel extends StatelessWidget {
   final String label;
   final Widget child;

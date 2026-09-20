@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:mk_app/api/api_client.dart';
-import 'package:mk_app/widgets/app_dialog.dart';
+import 'package:mk_app/widgets/pay_rate_dialog.dart';
 import 'package:mk_app/widgets/user_avatar.dart';
 
 /// Admin-only: set each crew member's hourly pay rate. Feeds the Payroll
@@ -34,30 +34,10 @@ class _PayRatesPageState extends State<PayRatesPage> {
   }
 
   Future<void> _editRate(EmployeeDetail employee) async {
-    final controller = TextEditingController(
-      text: employee.payRate == null ? '' : employee.payRate!.toStringAsFixed(2),
-    );
-
-    final result = await showFAppDialog<double>(
+    final result = await showPayRateDialog(
       context: context,
-      title: '${employee.fullName} · pay rate',
-      body: TextField(
-        controller: controller,
-        autofocus: true,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(prefixText: '\$', suffixText: '/h'),
-      ),
-      actions: [
-        FButton(
-          variant: .ghost,
-          onPress: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FButton(
-          onPress: () => Navigator.of(context).pop(double.tryParse(controller.text)),
-          child: const Text('Save'),
-        ),
-      ],
+      name: employee.fullName,
+      currentRate: employee.payRate,
     );
 
     if (result == null || !mounted) return;
