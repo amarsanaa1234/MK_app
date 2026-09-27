@@ -12,8 +12,11 @@ workflows:
       xcode: latest
       cocoapods: default
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.amarsanaa.muster
+        # Reference names from Codemagic → Code signing identities
+        provisioning_profiles:
+          - muster_profile
+        certificates:
+          - muster_dist
       vars:
         API_BASE_URL: https://209-38-85-63.sslip.io
     scripts:
