@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 
+import '../widgets/brand_logo.dart';
 import 'join_workspace_page.dart';
 import 'login_page.dart';
 import 'setup_workspace_page.dart';
@@ -10,8 +11,6 @@ class LandingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
-
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -22,31 +21,8 @@ class LandingPage extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 84,
-                    height: 84,
-                    decoration: BoxDecoration(
-                      color: colors.primary,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'M',
-                      style: TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.w800,
-                        color: colors.primaryForeground,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text('MK Roster', style: context.theme.typography.display.xl3),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Crew schedules and timesheets,\nin one place.',
-                    textAlign: TextAlign.center,
-                    style: context.theme.typography.body.sm.copyWith(color: colors.mutedForeground),
-                  ),
+                  const BrandLogo(height: 72),
+                  const SizedBox(height: 20),
                   const SizedBox(height: 40),
                   FButton(
                     onPress: () => Navigator.of(context).push(

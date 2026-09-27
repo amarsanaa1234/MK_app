@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 
-import 'screens/landing_page.dart';
+import 'screens/splash_page.dart';
 import 'theme/theme.dart';
 import 'theme/theme_controller.dart';
 
@@ -19,14 +19,14 @@ class MyApp extends StatelessWidget {
       builder: (context, dark, _) {
         final foruiTheme = dark ? darkTheme : lightTheme;
         return MaterialApp(
-          title: 'MK Roster',
+          title: 'Muster',
           debugShowCheckedModeBanner: false,
           theme: foruiTheme.toApproximateMaterialTheme(),
           builder: (context, child) => FTheme(
             data: foruiTheme,
             child: child!,
           ),
-          home: const LandingPage(),
+          home: const SplashPage(),
         );
       },
     );

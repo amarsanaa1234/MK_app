@@ -4,14 +4,27 @@ import 'package:mk_app/api/api_client.dart';
 import 'package:mk_app/screens/employeeScreen/notifications_page.dart';
 import 'package:mk_app/screens/landing_page.dart';
 import 'package:mk_app/screens/home_page.dart';
+import 'package:mk_app/screens/orgScreen/workspaces/workspace_picker_sheet.dart';
 import 'package:mk_app/theme/theme_controller.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mk_app/utils/workspace_prefs.dart';
 
 class Header extends StatelessWidget {
   final AuthResult session;
 
   final ValueChanged<AppSection> onSelectSection;
-  const Header({super.key, required this.session, required this.onSelectSection});
+
+  /// An admin who runs several workspaces opened a different one.
+  final ValueChanged<AuthResult> onSessionChanged;
+
+  const Header({
+    super.key,
+    required this.session,
+    required this.onSelectSection,
+    required this.onSessionChanged,
+  });
+
+  /// Only Business owners with more than one workspace can switch between them.
+  bool get _canSwitchWorkspace => session.userType == 'Admin' && session.workspaceCount > 1;
 
   String get _initials {
     final trimmed = session.fullName.trim();
@@ -23,9 +36,29 @@ class Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final rootNavigator = Navigator.of(context);
     // debugPrint('session: ${session.userId} ${session.fullName} ${session}');
+    Future<void> switchWorkspace() async {
+      final picked = await openWorkspacePicker(
+        context,
+        session: session,
+        title: 'Switch workspace',
+        subtitle: 'Everything in the app follows the workspace you open.',
+      );
+      if (picked != null) onSessionChanged(picked);
+    }
+
+    Future<void> openOrganizationProfile(BuildContext sheetContext) async {
+      Navigator.of(sheetContext).pop();
+      // With several workspaces, ask which organization's profile to open.
+      if (_canSwitchWorkspace) {
+        final picked = await openWorkspacePicker(context, session: session);
+        if (picked == null) return;
+        onSessionChanged(picked);
+      }
+      onSelectSection(AppSection.organizationProfile);
+    }
+
     Future<void> logout(BuildContext context) async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      await WorkspacePrefs.clearSession();
       if (!context.mounted) return;
       // Бүх өмнөх screen-ийг цэвэрлээд Landing page руу буцаана
       rootNavigator.pushAndRemoveUntil(
@@ -47,16 +80,32 @@ class Header extends StatelessWidget {
           children: [
             Text('Hi ${session.fullName}', style: context.theme.typography.display.lg),
             const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF232830),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'MK Removals · Sydney',
-                style: context.theme.typography.body.sm.copyWith(
-                  color: context.theme.colors.mutedForeground,
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _canSwitchWorkspace ? switchWorkspace : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF232830),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        session.workspaceLabel,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.theme.typography.body.sm.copyWith(
+                          color: context.theme.colors.mutedForeground,
+                        ),
+                      ),
+                    ),
+                    if (_canSwitchWorkspace) ...[
+                      const SizedBox(width: 4),
+                      Icon(FLucideIcons.chevronDown, size: 14, color: context.theme.colors.mutedForeground),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -161,11 +210,13 @@ class Header extends StatelessWidget {
                             ),
                           ],
                         ),
-                      FSidebarItem(
-                        icon: const Icon(FLucideIcons.box),
-                        label: const Text('My roster'),
-                        onPress: () => select(sheetContext, AppSection.myRoster),
-                      ),
+                      // Admins schedule jobs; only crew have a personal roster.
+                      if (session.userType != 'Admin')
+                        FSidebarItem(
+                          icon: const Icon(FLucideIcons.box),
+                          label: const Text('My roster'),
+                          onPress: () => select(sheetContext, AppSection.myRoster),
+                        ),
                       if (session.userType != 'Admin')
                         FSidebarItem(
                           icon: const Icon(FLucideIcons.clock),
@@ -189,22 +240,21 @@ class Header extends StatelessWidget {
                   FSidebarGroup(
                     label: const Text('Widgets'),
                     children: [
-                      if (session.userType == 'Admin')
-                        FSidebarItem(
-                          icon: const Icon(FLucideIcons.circleSlash),
-                          label: const Text('Post a job'),
-                          onPress: () => select(sheetContext, AppSection.dashboard),
-                        ),
+                      FSidebarItem(
+                        icon: const Icon(FLucideIcons.circleSlash),
+                        label: const Text('Post a job'),
+                        onPress: () => select(sheetContext, AppSection.dashboard),
+                      ),
                       FSidebarItem(
                         icon: const Icon(FLucideIcons.scaling),
                         label: const Text('Organization profile'),
-                        onPress: () => select(sheetContext, AppSection.organizationProfile),
+                        onPress: () => openOrganizationProfile(sheetContext),
                       ),
-                      FSidebarItem(
-                        icon: const Icon(FLucideIcons.layoutDashboard),
-                        label: const Text('Dashbourd'),
-                        onPress: () => select(sheetContext, AppSection.dashboard),
-                      ),
+                      // FSidebarItem(
+                      //   icon: const Icon(FLucideIcons.layoutDashboard),
+                      //   label: const Text('Dashbourd'),
+                      //   onPress: () => select(sheetContext, AppSection.dashboard),
+                      // ),
                       Padding(
                         padding: const EdgeInsets.all(8),
                         child: Row(

@@ -137,7 +137,7 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'For businesses new to MK Roster',
+          'For businesses new to Muster',
           style: typography.body.sm.copyWith(color: colors.mutedForeground),
         ),
         const SizedBox(height: 24),

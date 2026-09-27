@@ -29,6 +29,12 @@ class AuthResult {
   final String address;
   final String industry;
 
+  /// Name of the workspace currently open (the active one, for admins with several).
+  final String businessName;
+
+  /// How many workspaces this user can open — more than 1 only for Business owners.
+  final int workspaceCount;
+
   AuthResult({
     required this.userId,
     required this.userType,
@@ -38,6 +44,8 @@ class AuthResult {
     this.photoUrl,
     required this.address,
     required this.industry,
+    this.businessName = '',
+    this.workspaceCount = 1,
   });
 
   factory AuthResult.fromJson(Map<String, dynamic> json) => AuthResult(
@@ -49,7 +57,17 @@ class AuthResult {
     photoUrl: json['photoUrl'] as String?,
     address: json['address'] as String,
     industry: json['industry'] as String,
+    businessName: json['businessName'] as String? ?? '',
+    workspaceCount: json['workspaceCount'] as int? ?? 1,
   );
+
+  /// The short "Business name · City" label shown under the greeting in the header.
+  String get workspaceLabel {
+    final city = address.split(',').last.trim();
+    if (businessName.isEmpty) return address;
+    final alreadyNamed = businessName.toLowerCase().contains(city.toLowerCase());
+    return city.isEmpty || alreadyNamed ? businessName : '$businessName · $city';
+  }
 }
 
 class WorkspaceInfo {
@@ -97,9 +115,22 @@ class PlanInfo {
   final int maxWorkspaces;
   final int adminCount;
   final bool multipleAdmins;
+  /// A real Stripe subscription is active (as opposed to the no-card trial).
   final bool paymentMethodAdded;
+  final String? cardBrand;
+  final String? cardLast4;
+  /// When the current paid billing period renews, if [paymentMethodAdded].
+  final DateTime? currentPeriodEnd;
+  /// Whether the server has Stripe set up at all — hides "Add payment method" when false.
+  final bool paymentsEnabled;
   final int monthlyPrice;
   final int yearlyPrice;
+
+  /// The plan has no people limit (Business). [maxPeople] is then a huge sentinel — never show it.
+  final bool unlimitedPeople;
+
+  /// The signed-in admin may add another workspace right now (Business, under its workspace quota).
+  final bool canAddWorkspace;
 
   PlanInfo({
     required this.plan,
@@ -117,12 +148,18 @@ class PlanInfo {
     required this.adminCount,
     required this.multipleAdmins,
     required this.paymentMethodAdded,
+    this.cardBrand,
+    this.cardLast4,
+    this.currentPeriodEnd,
+    this.paymentsEnabled = false,
     required this.monthlyPrice,
     required this.yearlyPrice,
+    this.unlimitedPeople = false,
+    this.canAddWorkspace = false,
   });
 
   bool get isFree => plan == 'FREE';
-  bool get full => peopleCount >= maxPeople;
+  bool get full => !unlimitedPeople && peopleCount >= maxPeople;
 
   factory PlanInfo.fromJson(Map<String, dynamic> json) => PlanInfo(
     plan: json['plan'] as String,
@@ -140,9 +177,72 @@ class PlanInfo {
     adminCount: (json['adminCount'] as num?)?.toInt() ?? 1,
     multipleAdmins: json['multipleAdmins'] as bool? ?? false,
     paymentMethodAdded: json['paymentMethodAdded'] as bool? ?? false,
+    cardBrand: json['cardBrand'] as String?,
+    cardLast4: json['cardLast4'] as String?,
+    currentPeriodEnd:
+        json['currentPeriodEnd'] == null ? null : DateTime.parse(json['currentPeriodEnd'] as String),
+    paymentsEnabled: json['paymentsEnabled'] as bool? ?? false,
     monthlyPrice: json['monthlyPrice'] as int? ?? 0,
     yearlyPrice: json['yearlyPrice'] as int? ?? 0,
+    unlimitedPeople: json['unlimitedPeople'] as bool? ?? false,
+    canAddWorkspace: json['canAddWorkspace'] as bool? ?? false,
   );
+}
+
+/// One workspace an admin can open, for the workspace picker and the admin profile.
+class WorkspaceSummary {
+  final String organizationId;
+  final String businessName;
+  final String? address;
+  final String? industry;
+  final int peopleCount;
+
+  /// The workspace the admin currently has open.
+  final bool active;
+
+  /// Crew with money owed / missing hour logs in the requested pay period; null when not requested.
+  final int? unpaidCount;
+  final int? missingLogCount;
+
+  WorkspaceSummary({
+    required this.organizationId,
+    required this.businessName,
+    this.address,
+    this.industry,
+    required this.peopleCount,
+    required this.active,
+    this.unpaidCount,
+    this.missingLogCount,
+  });
+
+  /// "Sydney" out of "12 Wentworth Ave, Sydney" — the part worth showing next to the name.
+  String get city {
+    final a = address ?? '';
+    return a.contains(',') ? a.split(',').last.trim() : a.trim();
+  }
+
+  factory WorkspaceSummary.fromJson(Map<String, dynamic> json) => WorkspaceSummary(
+    organizationId: json['organizationId'] as String,
+    businessName: json['businessName'] as String,
+    address: json['address'] as String?,
+    industry: json['industry'] as String?,
+    peopleCount: (json['peopleCount'] as num).toInt(),
+    active: json['active'] as bool? ?? false,
+    unpaidCount: (json['unpaidCount'] as num?)?.toInt(),
+    missingLogCount: (json['missingLogCount'] as num?)?.toInt(),
+  );
+}
+
+/// A Stripe Checkout page (card, Apple Pay, Google Pay) for a new subscription.
+class CheckoutSession {
+  /// Stripe Checkout page to open in the browser.
+  final String url;
+  final String sessionId;
+
+  CheckoutSession({required this.url, required this.sessionId});
+
+  factory CheckoutSession.fromJson(Map<String, dynamic> json) =>
+      CheckoutSession(url: json['url'] as String, sessionId: json['sessionId'] as String);
 }
 
 class WorkspaceProfile {
@@ -644,6 +744,64 @@ class ApiClient {
     return WorkspaceProfile.fromJson(_decode(res));
   }
 
+  static String _isoDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Every workspace the admin can open. Pass a pay period ([from]..[to]) to also get each
+  /// workspace's unpaid / missing-log counts, for the "choose a workspace" screen.
+  static Future<List<WorkspaceSummary>> getMyWorkspaces({
+    required String token,
+    required String adminId,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final uri = Uri.parse('$apiBaseUrl/api/admins/$adminId/workspaces').replace(
+      queryParameters: from != null && to != null ? {'from': _isoDate(from), 'to': _isoDate(to)} : null,
+    );
+    final res = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Could not load your workspaces');
+    }
+    final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+    return list.map((e) => WorkspaceSummary.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Adds another workspace under the admin's Business plan; it gets its own Org ID.
+  static Future<WorkspaceSummary> addWorkspace({
+    required String token,
+    required String adminId,
+    required String businessName,
+    String abn = '',
+    String industry = '',
+    String address = '',
+  }) async {
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/api/admins/$adminId/workspaces'),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+      body: jsonEncode({'businessName': businessName, 'abn': abn, 'industry': industry, 'address': address}),
+    );
+    if (res.statusCode != 201) {
+      _throwFromError(res, 'Could not add the workspace');
+    }
+    return WorkspaceSummary.fromJson(_decode(res));
+  }
+
+  /// Opens another of the admin's workspaces; returns the refreshed session to keep.
+  static Future<AuthResult> switchWorkspace({
+    required String token,
+    required String adminId,
+    required String organizationId,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/api/admins/$adminId/workspaces/${Uri.encodeComponent(organizationId)}/switch'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Could not switch workspace');
+    }
+    return AuthResult.fromJson(_decode(res));
+  }
+
   /// Токеноор баталгаажсан админы байгууллагад бүртгэлтэй Employee
   /// статустай бүх ажилчдын жагсаалтыг татна. Backend JSON массив
   /// буцаадаг тул Map-руу decode хийдэг _decode()-г ашиглахгүй.
@@ -903,6 +1061,37 @@ class ApiClient {
     );
     if (res.statusCode != 200) {
       _throwFromError(res, 'Төлөвлөгөөний мэдээлэл татахад алдаа гарлаа');
+    }
+    return PlanInfo.fromJson(_decode(res));
+  }
+
+  /// Creates a Stripe Checkout page for [plan]/[yearly]; the app opens the returned URL in the browser.
+  static Future<CheckoutSession> startCheckout({
+    required String token,
+    required String adminId,
+    required String plan,
+    required bool yearly,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/api/admins/$adminId/plan/checkout'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'plan': plan, 'interval': yearly ? 'YEARLY' : 'MONTHLY'}),
+    );
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Could not start checkout');
+    }
+    return CheckoutSession.fromJson(_decode(res));
+  }
+
+  /// Called when the app returns from the browser, so the plan updates immediately
+  /// instead of waiting on Stripe's webhook.
+  static Future<PlanInfo> confirmCheckout({required String token, required String adminId}) async {
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/api/admins/$adminId/plan/confirm'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Could not confirm payment');
     }
     return PlanInfo.fromJson(_decode(res));
   }

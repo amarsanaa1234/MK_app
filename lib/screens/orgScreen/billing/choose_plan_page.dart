@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:mk_app/api/api_client.dart';
 import 'package:mk_app/screens/orgScreen/billing/plan_parts.dart';
+import 'package:mk_app/screens/orgScreen/billing/stripe_checkout.dart';
 import 'package:mk_app/widgets/app_dialog.dart';
 import 'package:mk_app/widgets/overview_widgets.dart';
 
@@ -24,7 +25,7 @@ class _ChoosePlanPageState extends State<ChoosePlanPage> {
     final current = widget.current;
 
     if (spec.code == 'FREE') {
-      final over = current.peopleCount > planSpecOf('FREE').maxPeople;
+      final over = current.peopleCount > planSpecOf('FREE').maxPeople!;
       final confirmed = await showFAppDialog<bool>(
         context: context,
         title: 'Switch to Free?',
@@ -40,10 +41,20 @@ class _ChoosePlanPageState extends State<ChoosePlanPage> {
       if (confirmed != true || !mounted) return;
     }
 
+    // Once the free trial has been used once, a new paid tier needs a real
+    // charge instead of another no-card trial.
+    final needsRealPayment = spec.code != 'FREE' && current.trialUsed;
+
     setState(() => _busyPlan = spec.code);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     try {
+      if (needsRealPayment) {
+        await startPaidCheckout(session: widget.session, plan: spec.code, yearly: _yearly);
+        messenger.showSnackBar(const SnackBar(content: Text('Finish paying in your browser, then come back here.')));
+        navigator.pop();
+        return;
+      }
       final updated = await ApiClient.changePlan(
         token: widget.session.token,
         adminId: widget.session.userId,
@@ -168,8 +179,8 @@ class _PlanCard extends StatelessWidget {
     final price = yearly ? spec.yearly : spec.monthly;
     final unit = free ? 'forever' : (yearly ? '/year' : '/month');
     final alt = free
-        ? 'Up to ${spec.maxPeople} people'
-        : 'Up to ${spec.maxPeople} people · or ${yearly ? '\$${spec.monthly}/month' : '\$${spec.yearly}/year'}';
+        ? spec.peopleLabel
+        : '${spec.peopleLabel} · or ${yearly ? '\$${spec.monthly}/month' : '\$${spec.yearly}/year'}';
 
     final String buttonLabel;
     if (free) {
@@ -177,7 +188,7 @@ class _PlanCard extends StatelessWidget {
     } else if (trialAvailable) {
       buttonLabel = pro ? 'Start 30-day free trial' : 'Start ${spec.name} trial';
     } else {
-      buttonLabel = 'Choose ${spec.name}';
+      buttonLabel = 'Pay & switch to ${spec.name}';
     }
 
     return Container(

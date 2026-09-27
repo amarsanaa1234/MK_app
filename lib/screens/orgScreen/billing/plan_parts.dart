@@ -13,7 +13,8 @@ class PlanSpec {
   final String name;
   final int monthly;
   final int yearly;
-  final int maxPeople;
+  /// The people limit, or null when the plan has none (Business).
+  final int? maxPeople;
   final String? intro;
   final List<String> features;
 
@@ -31,8 +32,11 @@ class PlanSpec {
     this.upgradeFeatures,
   });
 
+  /// "Up to 30 people" / "Unlimited people".
+  String get peopleLabel => maxPeople == null ? 'Unlimited people' : 'Up to $maxPeople people';
+
   /// What upgrading to this plan adds over the one below it.
-  List<String> get additions => ['Up to $maxPeople people', ...(upgradeFeatures ?? features)];
+  List<String> get additions => [peopleLabel, ...(upgradeFeatures ?? features)];
 }
 
 const kPlanSpecs = [
@@ -59,7 +63,7 @@ const kPlanSpecs = [
     name: 'Business',
     monthly: 49,
     yearly: 490,
-    maxPeople: 100,
+    maxPeople: null,
     intro: 'Everything in Pro, plus',
     features: ['Up to 5 workspaces', 'Priority support'],
   ),

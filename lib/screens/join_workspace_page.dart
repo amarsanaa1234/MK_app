@@ -75,7 +75,7 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
 
   /// A ready-made note the new hire can send their admin when the workspace is full.
   String get _adminMessage =>
-      'Hi! I am trying to join ${_workspace?.businessName ?? 'our workspace'} on MK Roster, but the workspace '
+      'Hi! I am trying to join ${_workspace?.businessName ?? 'our workspace'} on Muster, but the workspace '
       'has reached its ${_workspace?.maxPeople ?? 0}-person limit. Could you upgrade the plan or free up a spot? '
       'Organization ID: ${_orgIdController.text.trim().toUpperCase()}';
 

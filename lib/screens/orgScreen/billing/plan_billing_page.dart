@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:mk_app/api/api_client.dart';
 import 'package:mk_app/screens/orgScreen/billing/choose_plan_page.dart';
 import 'package:mk_app/screens/orgScreen/billing/plan_parts.dart';
+import 'package:mk_app/screens/orgScreen/billing/stripe_checkout.dart';
 import 'package:mk_app/widgets/app_dialog.dart';
 
 /// Admin-only: the workspace's plan, how much of it is used, and payment.
@@ -17,15 +18,40 @@ class PlanBillingPage extends StatefulWidget {
   State<PlanBillingPage> createState() => _PlanBillingPageState();
 }
 
-class _PlanBillingPageState extends State<PlanBillingPage> {
+class _PlanBillingPageState extends State<PlanBillingPage> with WidgetsBindingObserver {
   late Future<PlanInfo> _future;
   late final Future<WorkspaceProfile> _workspaceFuture;
+  bool _paying = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _workspaceFuture = ApiClient.getMyWorkspace(widget.session.token);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Back from paying in the browser: pull the new plan from Stripe and refresh.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !paymentPending.value) return;
+    paymentPending.value = false;
+    _syncAfterPayment();
+  }
+
+  Future<void> _syncAfterPayment() async {
+    try {
+      await ApiClient.confirmCheckout(token: widget.session.token, adminId: widget.session.userId);
+    } catch (_) {
+      // Plan is still refreshed below; the webhook will catch up if this failed.
+    }
+    if (mounted) await _refresh();
   }
 
   void _load() {
@@ -44,14 +70,28 @@ class _PlanBillingPageState extends State<PlanBillingPage> {
     if (updated != null && mounted) await _refresh();
   }
 
-  Future<void> _addPaymentMethod() => showFAppDialog<void>(
-    context: context,
-    title: 'Add payment method',
-    bodyText:
-        'Card payments are not connected yet. For now a paid plan runs as a free trial, '
-        'and the workspace returns to Free when it ends.',
-    actions: [FButton(variant: .ghost, onPress: () => Navigator.of(context).pop(), child: const Text('Close'))],
-  );
+  Future<void> _pay(PlanInfo plan) async {
+    if (_paying) return;
+    setState(() => _paying = true);
+    try {
+      await startPaidCheckout(
+        session: widget.session,
+        plan: plan.plan,
+        yearly: plan.interval == 'YEARLY',
+      );
+    } catch (e) {
+      if (mounted) {
+        await showFAppDialog<void>(
+          context: context,
+          title: 'Payment failed',
+          bodyText: e.toString(),
+          actions: [FButton(variant: .ghost, onPress: () => Navigator.of(context).pop(), child: const Text('Close'))],
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +155,14 @@ class _PlanBillingPageState extends State<PlanBillingPage> {
               ],
 
               sectionLabel('USAGE'),
-              _UsageRow(label: 'People', value: '${plan.peopleCount} of ${plan.maxPeople}', bar: UsageBar(value: plan.peopleCount, max: plan.maxPeople)),
+              if (plan.unlimitedPeople)
+                _UsageRow(label: 'People', value: '${plan.peopleCount} · unlimited')
+              else
+                _UsageRow(
+                  label: 'People',
+                  value: '${plan.peopleCount} of ${plan.maxPeople}',
+                  bar: UsageBar(value: plan.peopleCount, max: plan.maxPeople),
+                ),
               _UsageRow(
                 label: 'Workspaces',
                 value: '${plan.workspacesUsed} of ${plan.maxWorkspaces}',
@@ -128,7 +175,20 @@ class _PlanBillingPageState extends State<PlanBillingPage> {
 
               if (!plan.isFree) ...[
                 sectionLabel('PAYMENT'),
-                _KeyValueRow(label: 'Payment method', value: plan.paymentMethodAdded ? 'On file' : 'Not added', boldValue: true),
+                _KeyValueRow(
+                  label: 'Payment method',
+                  value: plan.paymentMethodAdded
+                      ? '${plan.cardBrand ?? 'Card'} •••• ${plan.cardLast4 ?? '····'}'
+                      : 'Not added',
+                  boldValue: true,
+                ),
+                if (plan.paymentMethodAdded && plan.currentPeriodEnd != null)
+                  _KeyValueRow(
+                    label: 'Next charge',
+                    value:
+                        '\$${(plan.interval == 'YEARLY' ? plan.yearlyPrice : plan.monthlyPrice).toStringAsFixed(2)}'
+                        ' on ${DateFormat('dd MMM').format(plan.currentPeriodEnd!)}',
+                  ),
                 if (plan.onTrial && plan.trialEndsOn != null)
                   _KeyValueRow(
                     label: 'First charge',
@@ -154,16 +214,30 @@ class _PlanBillingPageState extends State<PlanBillingPage> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                FButton(onPress: _addPaymentMethod, child: const Text('Add payment method')),
-                const SizedBox(height: 10),
-                FButton(variant: .outline, onPress: () => _changePlan(plan), child: const Text('Change plan')),
-                const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    'Secure checkout opens in your browser.',
-                    style: typography.body.xs.copyWith(color: colors.mutedForeground),
+                if (!plan.paymentsEnabled)
+                  NoticeBox(
+                    child: Text(
+                      'Card payments aren\'t connected yet. The plan runs as a free trial, '
+                      'and the workspace returns to Free when it ends.',
+                    ),
+                  )
+                else if (!plan.paymentMethodAdded)
+                  FButton(
+                    onPress: _paying ? null : () => _pay(plan),
+                    child: _paying ? const FCircularProgress() : const Text('Add payment method'),
                   ),
-                ),
+                if (plan.paymentsEnabled) const SizedBox(height: 10),
+                if (plan.paymentsEnabled)
+                  FButton(variant: .outline, onPress: () => _changePlan(plan), child: const Text('Change plan')),
+                if (plan.paymentsEnabled) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      'Secure checkout opens in your browser.',
+                      style: typography.body.xs.copyWith(color: colors.mutedForeground),
+                    ),
+                  ),
+                ],
               ] else ...[
                 const SizedBox(height: 24),
                 FButton(onPress: () => _changePlan(plan), child: const Text('See plans & upgrade')),

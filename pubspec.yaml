@@ -53,6 +53,19 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   forui_cli: ^0.25.0
+  flutter_launcher_icons: ^0.14.4
+
+# No monochrome layer on purpose: the icon stays the same whatever theme the phone uses.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/icon_rounded.png
+  image_path_ios: assets/icon/icon_square.png
+  remove_alpha_ios: true
+  adaptive_icon_background: "#1B1E23"
+  adaptive_icon_foreground: assets/icon/icon_foreground.png
+  adaptive_icon_foreground_inset: 0
+  min_sdk_android: 21
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -75,6 +88,9 @@ flutter:
         - asset: assets/fonts/JetBrains_Mono/JetBrainsMono-Italic.ttf
           style: italic
   uses-material-design: true
+
+  assets:
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

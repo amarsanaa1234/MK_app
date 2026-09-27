@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mk_app/screens/employeeScreen/employee_home_feed.dart';
+import 'package:mk_app/screens/employeeScreen/my_roster_page.dart';
 import 'package:mk_app/screens/employeeScreen/my_timesheet_page.dart';
 import 'package:mk_app/screens/header/header.dart';
 import 'package:mk_app/screens/orgScreen/billing/plan_billing_page.dart';
@@ -10,6 +11,7 @@ import 'package:mk_app/screens/orgScreen/payroll/pay_rates_page.dart';
 import 'package:mk_app/screens/orgScreen/payroll/payroll_calculator_page.dart';
 import 'package:mk_app/screens/orgScreen/payroll/timesheets_page.dart';
 import 'package:mk_app/screens/profile/user_profile_page.dart';
+import 'package:mk_app/utils/workspace_prefs.dart';
 
 import '../api/api_client.dart';
 
@@ -39,24 +41,40 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   AppSection _section = AppSection.dashboard;
 
+  /// The session the app is running on. It only changes when an admin who runs several
+  /// workspaces opens a different one (see [_sessionChanged]).
+  late AuthResult _session = widget.session;
+
   void _select(AppSection section) => setState(() => _section = section);
 
-  bool get _isAdmin => widget.session.userType == 'Admin';
+  /// A different workspace was opened: every screen below is rebuilt against the new session.
+  void _sessionChanged(AuthResult session) {
+    if (session.organizationId == _session.organizationId) return;
+    setState(() => _session = session);
+    WorkspacePrefs.markChosen(session.userId);
+  }
+
+  bool get _isAdmin => _session.userType == 'Admin';
 
   Widget _body() => switch (_section) {
     AppSection.dashboard => _isAdmin
-        ? OrgHomePage(session: widget.session)
-        : EmployeeHomeFeed(session: widget.session),
-    AppSection.profile => UserProfilePage(session: widget.session),
-    AppSection.organizationProfile => OrgProfile(session: widget.session),
-    AppSection.payRates => PayRatesPage(session: widget.session),
-    AppSection.planBilling => PlanBillingPage(session: widget.session),
-    AppSection.payroll => PayrollCalculatorPage(session: widget.session),
-    AppSection.timesheets => TimesheetsPage(session: widget.session),
-    AppSection.myTimesheet => MyTimesheetPage(session: widget.session),
-    AppSection.myRoster => const _ComingSoon(title: 'My roster'),
+        ? OrgHomePage(session: _session)
+        : EmployeeHomeFeed(session: _session),
+    AppSection.profile => UserProfilePage(
+      session: _session,
+      onSessionChanged: _sessionChanged,
+      onOpenSection: _select,
+    ),
+    AppSection.organizationProfile => OrgProfile(session: _session),
+    AppSection.payRates => PayRatesPage(session: _session),
+    AppSection.planBilling => PlanBillingPage(session: _session),
+    AppSection.payroll => PayrollCalculatorPage(session: _session),
+    AppSection.timesheets => TimesheetsPage(session: _session),
+    AppSection.myTimesheet => MyTimesheetPage(session: _session),
+    // "My roster" is a crew screen — admins schedule the jobs, they don't work a roster.
+    AppSection.myRoster => _isAdmin ? OrgHomePage(session: _session) : MyRosterPage(session: _session),
     AppSection.gettingStarted => const _ComingSoon(title: 'Getting Started'),
-    AppSection.employees => EmployeesPage(session: widget.session),
+    AppSection.employees => EmployeesPage(session: _session),
   };
 
   @override
@@ -65,12 +83,13 @@ class _HomePageState extends State<HomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            Header(session: widget.session, onSelectSection: _select),
+            Header(session: _session, onSelectSection: _select, onSessionChanged: _sessionChanged),
             Expanded(
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 380),
-                  child: _body(),
+                  // Keyed by workspace so every screen refetches its data after a switch.
+                  child: KeyedSubtree(key: ValueKey(_session.organizationId), child: _body()),
                 ),
               ),
             ),

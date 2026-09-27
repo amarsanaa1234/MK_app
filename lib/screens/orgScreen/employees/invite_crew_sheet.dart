@@ -45,7 +45,7 @@ class _InviteCrewSheetState extends State<InviteCrewSheet> {
   bool _copied = false;
 
   String get _message =>
-      'Join ${widget.businessName} on MK Roster: tap "Create an account" and enter the organization ID '
+      'Join ${widget.businessName} on Muster: tap "Create an account" and enter the organization ID '
       '${widget.organizationId}.';
 
   // Browsers can refuse clipboard access outright, so a failed copy is reported

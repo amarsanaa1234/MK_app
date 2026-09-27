@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 
 import '../api/api_client.dart';
+import '../utils/workspace_prefs.dart';
 import 'home_page.dart';
+import 'orgScreen/workspaces/choose_workspace_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,6 +20,15 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading = false;
   String? _error;
 
+  /// Which workspace opens after sign-in — the first rule that matches wins:
+  /// one workspace → go straight in; "ask every time" is on → choose; this phone has already had
+  /// the admin choose once → reopen the last used one (the server remembers it); otherwise choose.
+  Future<bool> _shouldChooseWorkspace(AuthResult session) async {
+    if (session.userType != 'Admin' || session.workspaceCount <= 1) return false;
+    if (await WorkspacePrefs.askEveryTime()) return true;
+    return !await WorkspacePrefs.hasChosen(session.userId);
+  }
+
   Future<void> _login() async {
     setState(() {
       _loading = true;
@@ -29,8 +40,12 @@ class _LoginPageState extends State<LoginPage> {
         _passwordController.text,
       );
       if (!mounted) return;
+      final chooseFirst = await _shouldChooseWorkspace(session);
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => HomePage(session: session)),
+        MaterialPageRoute(
+          builder: (_) => chooseFirst ? ChooseWorkspacePage(session: session) : HomePage(session: session),
+        ),
       );
     } catch (e) {
       setState(() => _error = e.toString());
