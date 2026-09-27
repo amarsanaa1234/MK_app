@@ -12,7 +12,7 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        # Holds CERTIFICATE_PRIVATE_KEY (App settings → Environment variables)
+        # Holds CERTIFICATE_PRIVATE_KEY_B64 (App settings → Environment variables)
         - ios_signing
       vars:
         API_BASE_URL: https://209-38-85-63.sslip.io
@@ -24,8 +24,11 @@ workflows:
         script: keychain initialize
       - name: Fetch signing files from Apple
         script: |
+          # CERTIFICATE_PRIVATE_KEY_B64 = base64 of the PEM key (one line, survives copy-paste)
+          echo "$CERTIFICATE_PRIVATE_KEY_B64" | base64 --decode > /tmp/cert_key.pem
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key=@file:/tmp/cert_key.pem \
             --create
       - name: Add certificates to keychain
         script: keychain add-certificates
