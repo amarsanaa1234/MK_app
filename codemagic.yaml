@@ -11,17 +11,24 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      ios_signing:
-        # Reference names from Codemagic → Code signing identities
-        provisioning_profiles:
-          - muster_profile
-        certificates:
-          - muster_dist
+      groups:
+        # Holds CERTIFICATE_PRIVATE_KEY (App settings → Environment variables)
+        - ios_signing
       vars:
         API_BASE_URL: https://209-38-85-63.sslip.io
+        BUNDLE_ID: com.amarsanaa.muster
     scripts:
       - name: Get packages
         script: flutter pub get
+      - name: Set up keychain
+        script: keychain initialize
+      - name: Fetch signing files from Apple
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Add certificates to keychain
+        script: keychain add-certificates
       - name: Set up code signing
         script: xcode-project use-profiles
       - name: Build IPA
