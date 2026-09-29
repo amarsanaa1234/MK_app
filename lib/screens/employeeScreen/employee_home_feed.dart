@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:intl/intl.dart';
 import 'package:mk_app/api/api_client.dart';
+import 'package:mk_app/screens/orgScreen/payroll/job_hours_entry_page.dart';
 import 'package:mk_app/widgets/job_card.dart';
 
 /// Read-only feed of job posts for a Crew member — "Home · job posts",
 /// mirroring the admin dashboard's Today/Upcoming split. Employees never see
 /// the "post a job" entry point; that's admin-only (see [OrgHomePage] and its
 /// FAB). Job cards look the same as the admin dashboard's — only the overline
-/// (posted-time vs. date) and the admin-only edit/hours actions differ.
+/// (posted-time vs. date) and the admin-only edit action differ; a lead gets
+/// the hours action once their job is due (see [leadCanEnterHours]).
 class EmployeeHomeFeed extends StatefulWidget {
   final AuthResult session;
   const EmployeeHomeFeed({required this.session, super.key});
@@ -190,6 +192,11 @@ class _JobList extends StatelessWidget {
                       : Text('with ${others.map((e) => e.fullName).join(', ')}'),
                   leader: job.leader,
                   crew: job.crew,
+                  onEnterHours: leadCanEnterHours(session, job)
+                      ? () async {
+                          if (await enterHoursAsLead(context, session, job)) await onRefresh();
+                        }
+                      : null,
                 ),
               );
             },

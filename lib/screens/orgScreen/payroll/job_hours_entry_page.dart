@@ -1,15 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 import 'package:mk_app/api/api_client.dart';
+import 'package:mk_app/widgets/app_dialog.dart';
 import 'package:mk_app/widgets/user_avatar.dart';
 
-/// Admin-only: log every crew member's hours for one job post in a single
-/// pass, instead of picking employee-then-job in the Payroll calculator.
-/// Opened from the "Enter hours" action on a job card.
+/// Whether [session]'s user leads [job] and still owes its hours: on or after the
+/// work day, and nothing logged yet by them or an admin.
+bool leadCanEnterHours(AuthResult session, JobAdSummary job) {
+  final now = DateTime.now();
+  final workDay = DateTime(job.workDate.year, job.workDate.month, job.workDate.day);
+  return job.leader?.id == session.userId &&
+      !job.hoursLogged &&
+      !workDay.isAfter(DateTime(now.year, now.month, now.day));
+}
+
+/// Warns the lead that hours can be entered only once, then opens the entry page.
+/// Returns true once the hours were submitted.
+Future<bool> enterHoursAsLead(BuildContext context, AuthResult session, JobAdSummary job) async {
+  final proceed = await showFAppDialog<bool>(
+    context: context,
+    title: 'One-time entry',
+    bodyText: 'As the lead you can enter the crew\'s hours for this job only once. '
+        'After you submit, the hours can\'t be changed from your side — your admin will review them.',
+    actions: [
+      FButton(variant: .ghost, onPress: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+      FButton(onPress: () => Navigator.of(context).pop(true), child: const Text('Continue')),
+    ],
+  );
+  if (proceed != true || !context.mounted) return false;
+
+  final submitted = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(builder: (_) => JobHoursEntryPage(session: session, job: job, asLead: true)),
+  );
+  if (submitted != true || !context.mounted) return false;
+  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hours submitted')));
+  return true;
+}
+
+/// Log every crew member's hours for one job post in a single pass, instead of
+/// picking employee-then-job in the Payroll calculator. Opened from the
+/// "Enter hours" action on a job card.
+///
+/// Admins can save and re-save freely. With [asLead] the job's lead fills in the
+/// whole crew once: every field is required and the submission is final — an
+/// admin reviews and corrects it afterwards if needed.
 class JobHoursEntryPage extends StatefulWidget {
   final AuthResult session;
   final JobAdSummary job;
-  const JobHoursEntryPage({required this.session, required this.job, super.key});
+  final bool asLead;
+  const JobHoursEntryPage({required this.session, required this.job, this.asLead = false, super.key});
 
   @override
   State<JobHoursEntryPage> createState() => _JobHoursEntryPageState();
@@ -27,11 +66,18 @@ class _JobHoursEntryPageState extends State<JobHoursEntryPage> {
   }
 
   void _load() {
-    _future = ApiClient.getJobHours(
-      token: widget.session.token,
-      adminId: widget.session.userId,
-      jobAdId: widget.job.id,
-    ).then((entries) {
+    final request = widget.asLead
+        ? ApiClient.getJobHoursAsLead(
+            token: widget.session.token,
+            employeeId: widget.session.userId,
+            jobAdId: widget.job.id,
+          )
+        : ApiClient.getJobHours(
+            token: widget.session.token,
+            adminId: widget.session.userId,
+            jobAdId: widget.job.id,
+          );
+    _future = request.then((entries) {
       for (final entry in entries) {
         _controllers.putIfAbsent(
           entry.employeeId,
@@ -52,7 +98,53 @@ class _JobHoursEntryPageState extends State<JobHoursEntryPage> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _submitAsLead(List<EmployeeHours> entries) async {
+    final hours = <String, double>{};
+    for (final entry in entries) {
+      final value = double.tryParse(_controllers[entry.employeeId]?.text.trim().replaceAll(',', '.') ?? '');
+      if (value == null || value < 0) {
+        _showError('Enter hours for ${entry.fullName}.');
+        return;
+      }
+      hours[entry.employeeId] = value;
+    }
+
+    final confirmed = await showFAppDialog<bool>(
+      context: context,
+      title: 'Submit hours?',
+      bodyText: 'This is your only chance to enter hours for this job. '
+          'Once submitted you can\'t change them — ask your admin if something needs fixing.',
+      actions: [
+        FButton(variant: .ghost, onPress: () => Navigator.of(context).pop(false), child: const Text('Check again')),
+        FButton(onPress: () => Navigator.of(context).pop(true), child: const Text('Submit')),
+      ],
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      await ApiClient.submitHoursAsLead(
+        token: widget.session.token,
+        employeeId: widget.session.userId,
+        jobAdId: widget.job.id,
+        hoursByEmployee: hours,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      _showError(e.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _saveAll(List<EmployeeHours> entries) async {
+    if (widget.asLead) return _submitAsLead(entries);
     setState(() => _saving = true);
     try {
       for (final entry in entries) {
@@ -136,6 +228,30 @@ class _JobHoursEntryPageState extends State<JobHoursEntryPage> {
                   ),
                 ),
               ),
+              if (widget.asLead)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colors.destructive.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.warning_amber_rounded, size: 18, color: colors.destructive),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'You can submit hours only once. Check every entry before submitting.',
+                            style: typography.body.sm.copyWith(color: colors.destructive),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               if (entries.isEmpty)
                 Expanded(
                   child: Center(
@@ -177,7 +293,9 @@ class _JobHoursEntryPageState extends State<JobHoursEntryPage> {
                 padding: const EdgeInsets.all(16),
                 child: FButton(
                   onPress: (_saving || entries.isEmpty) ? null : () => _saveAll(entries),
-                  child: _saving ? const FCircularProgress(size: .xs) : const Text('Save hours'),
+                  child: _saving
+                      ? const FCircularProgress(size: .xs)
+                      : Text(widget.asLead ? 'Submit hours' : 'Save hours'),
                 ),
               ),
             ],

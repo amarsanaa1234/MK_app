@@ -66,6 +66,17 @@ class _OrgHomePageState extends State<OrgHomePage> {
     if (saved == true && mounted) _refresh();
   }
 
+  Future<void> _deleteJob(JobAdSummary job) async {
+    try {
+      await ApiClient.deleteJobAd(token: widget.session.token, adminId: widget.session.userId, jobAdId: job.id);
+      if (!mounted) return;
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: Colors.transparent,
@@ -90,6 +101,7 @@ class _OrgHomePageState extends State<OrgHomePage> {
                   emptyText: 'No jobs scheduled today.',
                   onEdit: _editJob,
                   onEnterHours: _enterHours,
+                  onDelete: _deleteJob,
                 ),
               ),
               .entry(
@@ -100,6 +112,7 @@ class _OrgHomePageState extends State<OrgHomePage> {
                   emptyText: 'Nothing coming up in the next 7 days.',
                   onEdit: _editJob,
                   onEnterHours: _enterHours,
+                  onDelete: _deleteJob,
                 ),
               ),
             ],
@@ -116,6 +129,7 @@ class _JobList extends StatelessWidget {
   final String emptyText;
   final ValueChanged<JobAdSummary> onEdit;
   final ValueChanged<JobAdSummary> onEnterHours;
+  final ValueChanged<JobAdSummary> onDelete;
 
   const _JobList({
     required this.future,
@@ -123,6 +137,7 @@ class _JobList extends StatelessWidget {
     required this.emptyText,
     required this.onEdit,
     required this.onEnterHours,
+    required this.onDelete,
   });
 
   @override
@@ -212,6 +227,7 @@ class _JobList extends StatelessWidget {
                 crew: job.crew,
                 onEdit: () => onEdit(job),
                 onEnterHours: () => onEnterHours(job),
+                onDelete: () => onDelete(job),
               ),
             );
           },

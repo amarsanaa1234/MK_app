@@ -54,7 +54,7 @@ class _NewPostSheetState extends State<NewPostSheet> {
   );
 
   late DateTime _date = widget.existingJob?.workDate ?? _draft.date ?? DateTime.now();
-  late FTime _startTime = _parseStartTime(widget.existingJob?.startTime) ?? _draft.startTime ?? const FTime(9, 0);
+  late FTime _startTime = _parseStartTime(widget.existingJob?.startTime) ?? _draft.startTime ?? const FTime(7, 0);
   late String _jobType = (widget.existingJob?.jobType != null && _jobTypes.contains(widget.existingJob!.jobType))
       ? widget.existingJob!.jobType!
       : (_draft.jobType ?? 'Office');

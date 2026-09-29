@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
 
 import '../api/api_client.dart';
+import '../utils/saved_credentials.dart';
 import '../utils/workspace_prefs.dart';
 import 'home_page.dart';
 import 'orgScreen/workspaces/choose_workspace_page.dart';
@@ -18,7 +19,23 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
 
   bool _loading = false;
+  bool _rememberMe = true;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillSavedCredentials();
+  }
+
+  Future<void> _prefillSavedCredentials() async {
+    final saved = await SavedCredentials.load();
+    if (!mounted || saved == null) return;
+    setState(() {
+      _usernameController.text = saved.$1;
+      _passwordController.text = saved.$2;
+    });
+  }
 
   /// Which workspace opens after sign-in — the first rule that matches wins:
   /// one workspace → go straight in; "ask every time" is on → choose; this phone has already had
@@ -35,10 +52,14 @@ class _LoginPageState extends State<LoginPage> {
       _error = null;
     });
     try {
-      final session = await ApiClient.login(
-        _usernameController.text.trim(),
-        _passwordController.text,
-      );
+      final email = _usernameController.text.trim();
+      final password = _passwordController.text;
+      final session = await ApiClient.login(email, password);
+      if (_rememberMe) {
+        await SavedCredentials.save(email, password);
+      } else {
+        await SavedCredentials.clear();
+      }
       if (!mounted) return;
       final chooseFirst = await _shouldChooseWorkspace(session);
       if (!mounted) return;
@@ -85,6 +106,12 @@ class _LoginPageState extends State<LoginPage> {
                           control: FTextFieldControl.managed(controller: _passwordController),
                           label: const Text('Password'),
                           obscureText: true,
+                        ),
+                        const SizedBox(height: 12),
+                        FCheckbox(
+                          value: _rememberMe,
+                          onChange: (value) => setState(() => _rememberMe = value),
+                          label: const Text('Remember me on this phone'),
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 16),

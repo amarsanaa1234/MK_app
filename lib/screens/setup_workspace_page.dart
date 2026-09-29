@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../api/api_client.dart';
+import '../utils/form_validators.dart';
 import 'home_page.dart';
 
 class SetupWorkspacePage extends StatefulWidget {
@@ -57,7 +59,7 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
       _adminNameController.text.trim().isNotEmpty &&
       _adminEmailController.text.trim().isNotEmpty &&
       _adminPhoneController.text.trim().isNotEmpty &&
-      _adminPasswordController.text.trim().isNotEmpty;
+      PasswordStrength.isValid(_adminPasswordController.text);
 
   Future<void> _pickAvatar() async {
     final picked = await ImagePicker().pickImage(
@@ -149,6 +151,8 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
         FTextField(
           control: FTextFieldControl.managed(controller: _abnController),
           label: const Text('ABN'),
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         ),
         const SizedBox(height: 16),
         FTextField(
@@ -205,6 +209,8 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
         FTextField(
           control: FTextFieldControl.managed(controller: _adminNameController),
           label: const Text('Your name'),
+          textCapitalization: TextCapitalization.words,
+          inputFormatters: const [TitleCaseTextFormatter()],
         ),
         const SizedBox(height: 16),
         FTextField(
@@ -223,6 +229,10 @@ class _SetupWorkspacePageState extends State<SetupWorkspacePage> {
           control: FTextFieldControl.managed(controller: _adminPasswordController),
           label: const Text('Password'),
           obscureText: true,
+          error: PasswordStrength.describe(_adminPasswordController.text) == null
+              ? null
+              : Text(PasswordStrength.describe(_adminPasswordController.text)!),
+          description: const Text('At least 8 characters, with upper, lower and a symbol'),
         ),
         const SizedBox(height: 16),
         Container(

@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../api/api_client.dart';
+import '../utils/form_validators.dart';
 import '../widgets/copy_text.dart';
 import 'home_page.dart';
 import 'orgScreen/billing/plan_parts.dart';
@@ -99,7 +101,7 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
       _fullNameController.text.trim().isNotEmpty &&
       _emailController.text.trim().isNotEmpty &&
       _phoneController.text.trim().isNotEmpty &&
-      _passwordController.text.trim().isNotEmpty &&
+      PasswordStrength.isValid(_passwordController.text) &&
       _addressController.text.trim().isNotEmpty &&
       _abnController.text.trim().isNotEmpty;
 
@@ -229,6 +231,8 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                         FTextField(
                           control: FTextFieldControl.managed(controller: _fullNameController),
                           label: const Text('Full name'),
+                          textCapitalization: TextCapitalization.words,
+                          inputFormatters: const [TitleCaseTextFormatter()],
                         ),
                         const SizedBox(height: 16),
                         FTextField(
@@ -246,6 +250,8 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                         FTextField(
                           control: FTextFieldControl.managed(controller: _abnController),
                           label: const Text('ABN'),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         ),
                         const SizedBox(height: 16),
                         FTextField(
@@ -257,6 +263,10 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                           control: FTextFieldControl.managed(controller: _passwordController),
                           label: const Text('Password'),
                           obscureText: true,
+                          error: PasswordStrength.describe(_passwordController.text) == null
+                              ? null
+                              : Text(PasswordStrength.describe(_passwordController.text)!),
+                          description: const Text('At least 8 characters, with upper, lower and a symbol'),
                         ),
                         const SizedBox(height: 20),
                         Text(
@@ -353,15 +363,15 @@ class _JoinWorkspacePageState extends State<JoinWorkspacePage> {
                           ),
                         ],
                         const SizedBox(height: 12),
-                        Center(
-                          child: FButton(
-                            variant: .ghost,
-                            onPress: () => Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const LoginPage()),
-                            ),
-                            child: const Text('Already have an account? Log in'),
-                          ),
-                        ),
+                        // Center(
+                        //   child: FButton(
+                        //     variant: .ghost,
+                        //     onPress: () => Navigator.of(context).pushReplacement(
+                        //       MaterialPageRoute(builder: (_) => const LoginPage()),
+                        //     ),
+                        //     child: const Text('Already have an account? Log in'),
+                        //   ),
+                        // ),
                       ],
                     ),
                   ),

@@ -3,6 +3,7 @@ import 'package:forui/forui.dart';
 import 'package:intl/intl.dart';
 import 'package:mk_app/api/api_client.dart';
 import 'package:mk_app/screens/orgScreen/billing/plan_parts.dart';
+import 'package:mk_app/screens/orgScreen/payroll/job_hours_entry_page.dart';
 import 'package:mk_app/widgets/job_card.dart' show jobStatusColor, jobStatusLabels;
 import 'package:mk_app/widgets/user_avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -75,6 +76,10 @@ class _MyRosterPageState extends State<MyRosterPage> {
   }
 
   bool _leading(JobAdSummary job) => job.leader?.id == widget.session.userId;
+
+  Future<void> _enterHours(JobAdSummary job) async {
+    if (await enterHoursAsLead(context, widget.session, job)) await _refresh();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,6 +214,7 @@ class _MyRosterPageState extends State<MyRosterPage> {
                       today: isToday,
                       me: widget.session.userId,
                       onTap: () => _openShift(job),
+                      onEnterHours: leadCanEnterHours(widget.session, job) ? () => _enterHours(job) : null,
                     ),
                   ),
               ],
@@ -466,12 +472,15 @@ class _ShiftCard extends StatelessWidget {
   final bool today;
   final String me;
   final VoidCallback onTap;
+  /// Set only while the signed-in lead still owes this job's hours.
+  final VoidCallback? onEnterHours;
   const _ShiftCard({
     required this.job,
     required this.leading,
     required this.today,
     required this.me,
     required this.onTap,
+    this.onEnterHours,
   });
 
   @override
@@ -545,6 +554,15 @@ class _ShiftCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                ),
+              ],
+              if (onEnterHours != null) ...[
+                const SizedBox(height: 10),
+                FButton(
+                  variant: .outline,
+                  onPress: onEnterHours,
+                  prefix: const Icon(FLucideIcons.clock),
+                  child: const Text('Enter hours'),
                 ),
               ],
               if (today && job.addressLine != null) ...[

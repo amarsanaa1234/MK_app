@@ -39,6 +39,7 @@ class JobCard extends StatelessWidget {
   final List<Employee> crew;
   final VoidCallback? onEdit;
   final VoidCallback? onEnterHours;
+  final VoidCallback? onDelete;
 
   const JobCard({
     required this.overline,
@@ -53,6 +54,7 @@ class JobCard extends StatelessWidget {
     this.crew = const [],
     this.onEdit,
     this.onEnterHours,
+    this.onDelete,
     super.key,
   });
 
@@ -117,6 +119,29 @@ class JobCard extends StatelessWidget {
           variant: .ghost,
           onPress: () => Navigator.of(context).pop(),
           child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showFAppDialog<void>(
+      context: context,
+      title: 'Delete this job?',
+      bodyText: 'This removes the job post, its crew and any hours logged against it. This can\'t be undone.',
+      actions: [
+        FButton(
+          variant: .ghost,
+          onPress: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FButton(
+          variant: .destructive,
+          onPress: () {
+            Navigator.of(context).pop();
+            onDelete!();
+          },
+          child: const Text('Delete'),
         ),
       ],
     );
@@ -192,7 +217,12 @@ class JobCard extends StatelessWidget {
               onPress: addressLine == null ? null : () => _openDirections(addressLine!),
               child: const Text('Get directions'),
             ),
-            if (leader != null || crew.isNotEmpty || hasNotes || onEnterHours != null || onEdit != null) ...[
+            if (leader != null ||
+                crew.isNotEmpty ||
+                hasNotes ||
+                onEnterHours != null ||
+                onEdit != null ||
+                onDelete != null) ...[
               const SizedBox(height: 8),
               // A second row for the icon-only actions — keeping "Get directions" on its
               // own full-width row means this can never overflow, no matter how many
@@ -232,6 +262,15 @@ class JobCard extends StatelessWidget {
                       tooltip: 'Edit job',
                       color: colors.mutedForeground,
                       onPressed: onEdit!,
+                    ),
+                  ],
+                  if (onDelete != null) ...[
+                    const SizedBox(width: 8),
+                    _IconAction(
+                      icon: FLucideIcons.trash2,
+                      tooltip: 'Delete job',
+                      color: colors.destructive,
+                      onPressed: () => _confirmDelete(context),
                     ),
                   ],
                 ],

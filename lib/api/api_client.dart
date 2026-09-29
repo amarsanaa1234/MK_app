@@ -588,6 +588,8 @@ class JobAdSummary {
   final Employee? leader;
   final List<Employee> crew;
   final DateTime? createdAt;
+  /// True once hours have been logged for this job (by an admin or by the lead).
+  final bool hoursLogged;
 
   JobAdSummary({
     required this.id,
@@ -603,6 +605,7 @@ class JobAdSummary {
     this.leader,
     this.crew = const [],
     this.createdAt,
+    this.hoursLogged = false,
   });
 
   factory JobAdSummary.fromJson(Map<String, dynamic> json) => JobAdSummary(
@@ -623,6 +626,7 @@ class JobAdSummary {
         .map((e) => Employee.fromJson(e as Map<String, dynamic>))
         .toList(),
     createdAt: json['createdAt'] == null ? null : DateTime.parse(json['createdAt'] as String),
+    hoursLogged: json['hoursLogged'] as bool? ?? false,
   );
 }
 
@@ -896,6 +900,21 @@ class ApiClient {
     );
     if (res.statusCode != 200) {
       _throwFromError(res, 'Ажлын зар шинэчлэхэд алдаа гарлаа');
+    }
+  }
+
+  /// Deletes a job post and everything on it (crew, assignments, logged hours, notifications).
+  static Future<void> deleteJobAd({
+    required String token,
+    required String adminId,
+    required String jobAdId,
+  }) async {
+    final res = await http.delete(
+      Uri.parse('$apiBaseUrl/api/admins/$adminId/job-ads/$jobAdId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 204 && res.statusCode != 200) {
+      _throwFromError(res, 'Ажлын зар устгахад алдаа гарлаа');
     }
   }
 
@@ -1222,6 +1241,48 @@ class ApiClient {
     }
     final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
     return list.map((e) => JobAdSummary.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Ахлагч: өөрийн ахалсан ажлын багийн гишүүд болон бүртгэгдсэн цагийг татна.
+  static Future<List<EmployeeHours>> getJobHoursAsLead({
+    required String token,
+    required String employeeId,
+    required String jobAdId,
+  }) async {
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/api/employees/$employeeId/job-ads/$jobAdId/hours'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      _throwFromError(res, 'Ажилласан цаг татахад алдаа гарлаа');
+    }
+    final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+    return list.map((e) => EmployeeHours.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Ахлагч: багийн бүх гишүүний цагийг нэг удаа илгээнэ. Дахин илгээх боломжгүй —
+  /// засвар хэрэгтэй бол админ засна.
+  static Future<void> submitHoursAsLead({
+    required String token,
+    required String employeeId,
+    required String jobAdId,
+    required Map<String, double> hoursByEmployee,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/api/employees/$employeeId/job-ads/$jobAdId/hours'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'entries': [
+          for (final e in hoursByEmployee.entries) {'employeeId': e.key, 'hoursWorked': e.value},
+        ],
+      }),
+    );
+    if (res.statusCode != 201) {
+      _throwFromError(res, 'Ажилласан цаг хадгалахад алдаа гарлаа');
+    }
   }
 
   /// Нэвтэрсэн ажилтны өөрийнх нь ажилласан цагийн бүртгэлүүд [from]..[to]
