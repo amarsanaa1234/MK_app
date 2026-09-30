@@ -45,4 +45,8 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # The build is still uploaded to TestFlight and reaches internal testers without this.
+        # true = also submit for external beta review, which needs Test Information filled in
+        # (App Store Connect → TestFlight → Test Information); otherwise it fails with
+        # "Beta contract is missing for the app".
+        submit_to_testflight: false
