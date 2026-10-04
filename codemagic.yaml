@@ -46,3 +46,91 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+
+  # Read-only: asks the App Store Connect API for this app's TestFlight state (beta review
+  # details, localizations, license agreement, groups, and each build's internal/external
+  # beta state). Sends only GET requests, so it changes nothing. Run it by hand from Codemagic.
+  ios-diagnose:
+    name: iOS → TestFlight diagnosis (read-only)
+    max_build_duration: 10
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: codemagic_asc
+    scripts:
+      - name: Read TestFlight state from App Store Connect
+        script: |
+          cat > /tmp/asc_diagnose.py <<'EOF'
+          import json, os, sys, time, urllib.error, urllib.parse, urllib.request
+          import jwt
+
+          APP_ID = "6816649148"
+          NAMES = ["APP_STORE_CONNECT_ISSUER_ID", "APP_STORE_CONNECT_KEY_IDENTIFIER", "APP_STORE_CONNECT_PRIVATE_KEY"]
+          missing = [n for n in NAMES if not os.environ.get(n)]
+          if missing:
+              sys.exit("Missing environment variables: " + ", ".join(missing))
+
+          key = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"]
+          if "\\n" in key and "\n" not in key:
+              key = key.replace("\\n", "\n")
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": os.environ["APP_STORE_CONNECT_ISSUER_ID"], "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256",
+              headers={"kid": os.environ["APP_STORE_CONNECT_KEY_IDENTIFIER"], "typ": "JWT"})
+
+          def get(path, params=None):
+              url = "https://api.appstoreconnect.apple.com" + path
+              if params:
+                  url += "?" + urllib.parse.urlencode(params)
+              request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
+              try:
+                  with urllib.request.urlopen(request) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  return {"HTTP_ERROR": error.code, "body": error.read().decode()}
+
+          def show(title, data):
+              print("\n=== " + title + " ===")
+              print(json.dumps(data, indent=2))
+
+          show("App", get(f"/v1/apps/{APP_ID}"))
+          show("Beta app review detail (contact, demo account)", get(f"/v1/apps/{APP_ID}/betaAppReviewDetail"))
+          show("Beta app localizations (description, feedback email, privacy URL)", get(f"/v1/apps/{APP_ID}/betaAppLocalizations"))
+          show("Beta license agreement", get(f"/v1/apps/{APP_ID}/betaLicenseAgreement"))
+          show("Beta groups", get(f"/v1/apps/{APP_ID}/betaGroups"))
+
+          builds = get("/v1/builds", {
+              "filter[app]": APP_ID,
+              "sort": "-uploadedDate",
+              "limit": "10",
+              "include": "buildBetaDetail,betaAppReviewSubmission",
+              "fields[builds]": "version,uploadedDate,processingState,expired,usesNonExemptEncryption,minOsVersion,buildBetaDetail,betaAppReviewSubmission",
+              "fields[buildBetaDetails]": "internalBuildState,externalBuildState",
+              "fields[betaAppReviewSubmissions]": "betaReviewState,submittedDate",
+          })
+          if "HTTP_ERROR" in builds:
+              show("Builds (error)", builds)
+          else:
+              included = {(item["type"], item["id"]): item["attributes"] for item in builds.get("included", [])}
+              def related(build, name):
+                  link = (build.get("relationships", {}).get(name) or {}).get("data")
+                  return included.get((link["type"], link["id"]), {}) if link else {}
+              print("\n=== Builds (newest first) ===")
+              for build in builds["data"]:
+                  attributes = build["attributes"]
+                  beta = related(build, "buildBetaDetail")
+                  review = related(build, "betaAppReviewSubmission")
+                  print(f"build {attributes['version']:>3} | uploaded {attributes['uploadedDate']} | "
+                        f"processing {attributes['processingState']} | expired {attributes['expired']} | "
+                        f"internal {beta.get('internalBuildState')} | external {beta.get('externalBuildState')} | "
+                        f"review {review.get('betaReviewState', 'never submitted')}")
+          EOF
+
+          # codemagic-cli-tools already ships PyJWT; use its interpreter, else install it.
+          PY=$(head -1 "$(command -v app-store-connect)" | sed 's/^#!//')
+          if ! $PY -c "import jwt" 2>/dev/null; then
+            PY=python3
+            $PY -m pip install --quiet pyjwt cryptography \
+              || $PY -m pip install --quiet --break-system-packages pyjwt cryptography
+          fi
+          $PY /tmp/asc_diagnose.py
