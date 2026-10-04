@@ -60,7 +60,7 @@ workflows:
       - name: Read TestFlight state from App Store Connect
         script: |
           cat > /tmp/asc_diagnose.py <<'EOF'
-          import json, os, sys, time, urllib.error, urllib.parse, urllib.request
+          import base64, json, os, sys, time, urllib.error, urllib.parse, urllib.request
           import jwt
 
           APP_ID = "6816649148"
@@ -69,9 +69,37 @@ workflows:
           if missing:
               sys.exit("Missing environment variables: " + ", ".join(missing))
 
-          key = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"]
-          if "\\n" in key and "\n" not in key:
-              key = key.replace("\\n", "\n")
+          def load_private_key(raw):
+              """Rebuilds a clean PEM from whatever shape Codemagic stores the .p8 key in:
+              a @file:/@env: reference, escaped or missing newlines, or base64 of the whole PEM."""
+              raw = raw.strip()
+              source = "value"
+              if raw.startswith("@file:"):
+                  source = "@file"
+                  with open(os.path.expanduser(raw[len("@file:"):])) as handle:
+                      raw = handle.read()
+              elif raw.startswith("@env:"):
+                  source = "@env"
+                  raw = os.environ[raw[len("@env:"):]]
+              raw = raw.replace("\\n", "\n").strip()
+              if "-----BEGIN" not in raw:
+                  try:
+                      decoded = base64.b64decode(raw).decode()
+                      if "-----BEGIN" in decoded:
+                          raw, source = decoded, source + "+base64"
+                  except Exception:
+                      pass
+              # Shape only, never the key itself.
+              print(f"private key: from {source}, length {len(raw)}, "
+                    f"PEM header {'-----BEGIN' in raw}, line breaks {raw.count(chr(10))}")
+              body = raw
+              if "-----BEGIN" in raw:
+                  body = raw.split("-----", 2)[2].split("-----END", 1)[0]
+              body = "".join(body.split())
+              lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+              return "-----BEGIN PRIVATE KEY-----\n" + "\n".join(lines) + "\n-----END PRIVATE KEY-----\n"
+
+          key = load_private_key(os.environ["APP_STORE_CONNECT_PRIVATE_KEY"])
           now = int(time.time())
           token = jwt.encode(
               {"iss": os.environ["APP_STORE_CONNECT_ISSUER_ID"], "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
