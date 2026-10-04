@@ -122,7 +122,10 @@ workflows:
               print(json.dumps(data, indent=2))
 
           show("App", get(f"/v1/apps/{APP_ID}"))
-          show("Beta app review detail (contact, demo account)", get(f"/v1/apps/{APP_ID}/betaAppReviewDetail"))
+          review_detail = get(f"/v1/apps/{APP_ID}/betaAppReviewDetail")
+          if review_detail.get("data", {}).get("attributes", {}).get("demoAccountPassword"):
+              review_detail["data"]["attributes"]["demoAccountPassword"] = "<hidden>"
+          show("Beta app review detail (contact, demo account)", review_detail)
           show("Beta app localizations (description, feedback email, privacy URL)", get(f"/v1/apps/{APP_ID}/betaAppLocalizations"))
           show("Beta license agreement", get(f"/v1/apps/{APP_ID}/betaLicenseAgreement"))
           show("Beta groups", get(f"/v1/apps/{APP_ID}/betaGroups"))
